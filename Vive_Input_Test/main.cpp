@@ -11,6 +11,8 @@
 #include <vector>
 
 #include "shader.h"
+#include "helpers.h"
+#include "hmd.h"
 
 // This is a tech test of loading up all the OpenVR things and putting something on the HMD
 // Tested on Windows 10 with Visual Studio 2013 community and an Oculus DK2.
@@ -50,9 +52,7 @@ struct FrameBufferDesc
 } left_eye_desc, right_eye_desc;
 
 // OpenvR
-vr::IVRSystem* hmd = nullptr;
-const float near_plane = 0.1f;
-const float far_plane = 20.0f;
+HMD hmd;
 uint32_t hmd_render_target_width;
 uint32_t hmd_render_target_height;
 glm::mat4 left_eye_projection = glm::mat4( 1.0f );
@@ -132,111 +132,25 @@ bool CreateFrameBuffer( int width, int height, FrameBufferDesc& desc )
 }
 
 /*
-// Compile a shader program from two strings
-// name is provided for prettier error messages
-GLuint CreateShaderProgram( const char* name, const char* vertex_source, const char* fragment_source )
-{
-	GLuint shader_program = glCreateProgram();
-
-	// Vertex shader
-	GLuint vertex_shader = glCreateShader( GL_VERTEX_SHADER );
-	glShaderSource( vertex_shader, 1, &vertex_source, NULL );
-	glCompileShader( vertex_shader );
-
-	GLint status = GL_FALSE;
-	glGetShaderiv( vertex_shader, GL_COMPILE_STATUS, &status );
-	if( status != GL_TRUE )
-	{
-		printf( "Failed to compile %s vertex shader\n", name );
-		glDeleteProgram( shader_program );
-		glDeleteShader( vertex_shader );
-		return 0;
-	}
-	else
-	{
-		glAttachShader( shader_program, vertex_shader );
-		glDeleteShader( vertex_shader ); // We can throw it away not it's been attached
-	}
-
-	// Fragment shader
-	GLuint fragment_shader = glCreateShader( GL_FRAGMENT_SHADER );
-	glShaderSource( fragment_shader, 1, &fragment_source, NULL );
-	glCompileShader( fragment_shader );
-
-	status = GL_FALSE;
-	glGetShaderiv( fragment_shader, GL_COMPILE_STATUS, &status );
-	if( status != GL_TRUE )
-	{
-		printf( "Failed to compile %s fragment shader\n", name );
-		glDeleteProgram( shader_program );
-		glDeleteShader( fragment_shader );
-		return 0;
-	}
-	else
-	{
-		glAttachShader( shader_program, fragment_shader );
-		glDeleteShader( fragment_shader );
-	}
-
-	// Now link the shaders into the program
-	glLinkProgram( shader_program );
-	status = GL_TRUE;
-	glGetProgramiv( shader_program, GL_LINK_STATUS, &status );
-	if( status != GL_TRUE )
-	{
-		printf( "Failed to link %s program\n", name );
-		glDeleteProgram( shader_program );
-		return 0;
-	}
-	else
-	{
-		printf( "Shader success! %d\n", shader_program );
-	}
-
-	glUseProgram( 0 );
-	return shader_program;
-}
-*/
-
-glm::mat4 ConvertHMDMat4ToGLMMat4( const vr::HmdMatrix44_t& mat )
-{
-	return glm::mat4(
-		mat.m[0][0], mat.m[1][0], mat.m[2][0], mat.m[3][0],
-		mat.m[0][1], mat.m[1][1], mat.m[2][1], mat.m[3][1],
-		mat.m[0][2], mat.m[1][2], mat.m[2][2], mat.m[3][2],
-		mat.m[0][3], mat.m[1][3], mat.m[2][3], mat.m[3][3]
-	);
-}
-
-glm::mat4 ConvertHMDMat3ToGLMMat4( const vr::HmdMatrix34_t& mat )
-{
-	return glm::mat4(
-		mat.m[0][0], mat.m[1][0], mat.m[2][0], 0.0,
-		mat.m[0][1], mat.m[1][1], mat.m[2][1], 0.0,
-		mat.m[0][2], mat.m[1][2], mat.m[2][2], 0.0,
-		mat.m[0][3], mat.m[1][3], mat.m[2][3], 1.0f
-	);
-}
-
 glm::mat4 GetHMDMartixProjection( vr::Hmd_Eye eye )
 {
-	if( !hmd )
+	if( !hmd.isValid() )
 		return glm::mat4();
 
-	vr::HmdMatrix44_t matrix = hmd->GetProjectionMatrix( eye, near_plane, far_plane );
+	vr::HmdMatrix44_t matrix = hmd.get()->GetProjectionMatrix( eye, near_plane, far_plane );
 
 	return ConvertHMDMat4ToGLMMat4( matrix );
 }
 
 glm::mat4 GetHMDMatrixPoseEye( vr::Hmd_Eye eye )
 {
-	if( !hmd )
+	if( !hmd.isValid() )
 		return glm::mat4();
 
-	vr::HmdMatrix34_t matrix = hmd->GetEyeToHeadTransform( eye );
+	vr::HmdMatrix34_t matrix = hmd.get()->GetEyeToHeadTransform( eye );
 
 	return ConvertHMDMat3ToGLMMat4( matrix );
-}
+}*/
 
 void RenderScene( vr::Hmd_Eye eye )
 {
@@ -276,7 +190,7 @@ void RenderScene( vr::Hmd_Eye eye )
 	glDrawArrays( GL_TRIANGLES, 0, 12 );
 
 	// Ensure this application has focus
-	if( !hmd->IsInputFocusCapturedByAnotherProcess() )
+	if( hmd.get()->IsInputFocusCapturedByAnotherProcess() )
 	{
 		// draw the controller axis lines
 		glBindVertexArray( tracked_controller_vao );
@@ -292,15 +206,15 @@ void UpdateControllerAxes()
 	tracked_controller_vertex_count = 0;
 
 	// Don't draw controllers if somebody else has input focus
-	if( hmd->IsInputFocusCapturedByAnotherProcess() )
+	if( hmd.get()->IsInputFocusCapturedByAnotherProcess() )
 		return;
 
 	for( vr::TrackedDeviceIndex_t tracked_device = vr::k_unTrackedDeviceIndex_Hmd + 1; tracked_device < vr::k_unMaxTrackedDeviceCount; ++tracked_device )
 	{
-		if( !hmd->IsTrackedDeviceConnected( tracked_device ) )
+		if( !hmd.get()->IsTrackedDeviceConnected( tracked_device ) )
 			continue;
 
-		if( hmd->GetTrackedDeviceClass( tracked_device ) != vr::TrackedDeviceClass_Controller )
+		if( hmd.get()->GetTrackedDeviceClass( tracked_device ) != vr::TrackedDeviceClass_Controller )
 			continue;
 
 		tracked_controller_count += 1;
@@ -384,7 +298,7 @@ void UpdateControllerAxes()
 
 void UpdateHMDMatrixPose()
 {
-	if( !hmd )
+	if( !hmd.isValid() )
 		return;
 
 	vr::VRCompositor()->WaitGetPoses( tracked_device_pose, vr::k_unMaxTrackedDeviceCount, NULL, 0 );
@@ -399,7 +313,7 @@ void UpdateHMDMatrixPose()
 			mat4_device_pose[nDevice] = ConvertHMDMat3ToGLMMat4( tracked_device_pose[nDevice].mDeviceToAbsoluteTracking );
 			if( dev_class_char[nDevice] == 0 )
 			{
-				switch( hmd->GetTrackedDeviceClass( nDevice ) )
+				switch( hmd.get()->GetTrackedDeviceClass( nDevice ) )
 				{
 				case vr::TrackedDeviceClass_Controller:        dev_class_char[nDevice] = 'C'; break;
 				case vr::TrackedDeviceClass_HMD:               dev_class_char[nDevice] = 'H'; break;
@@ -442,6 +356,10 @@ int main( int argc, char* argv[] )
 		}
 	}
 
+	bool success = hmd.init( vr::VRApplication_Scene );
+	if( !success ) return 1;
+
+	/*
 	// Load the OpenVR/SteamVR Runtime
 	vr::EVRInitError init_error = vr::VRInitError_None;
 	hmd = vr::VR_Init( &init_error, vr::VRApplication_Scene );
@@ -452,8 +370,9 @@ int main( int argc, char* argv[] )
 		sprintf_s( buf, sizeof( buf ), "Unable to init VR runtime: %s", vr::VR_GetVRInitErrorAsEnglishDescription( init_error ) );
 		SDL_ShowSimpleMessageBox( SDL_MESSAGEBOX_ERROR, "VR_Init Failed", buf, NULL );
 		return 1;
-	}
+	}*/
 
+	vr::EVRInitError init_error = vr::VRInitError_None;
 	(vr::IVRRenderModels *)vr::VR_GetGenericInterface( vr::IVRRenderModels_Version, &init_error );
 
 	// Create the window
@@ -495,8 +414,8 @@ int main( int argc, char* argv[] )
 		std::string driver = "No Driver";
 		std::string display = "No Display";
 
-		driver = GetTrackedDeviceString( hmd, vr::k_unTrackedDeviceIndex_Hmd, vr::Prop_TrackingSystemName_String );
-		display = GetTrackedDeviceString( hmd, vr::k_unTrackedDeviceIndex_Hmd, vr::Prop_SerialNumber_String );
+		driver = hmd.getTrackedDeviceString( vr::k_unTrackedDeviceIndex_Hmd, vr::Prop_TrackingSystemName_String );
+		display = hmd.getTrackedDeviceString( vr::k_unTrackedDeviceIndex_Hmd, vr::Prop_SerialNumber_String );
 
 		printf( "Device: %s\n", display.c_str() );
 		printf( "Driver: %s\n", driver.c_str() );
@@ -626,7 +545,8 @@ int main( int argc, char* argv[] )
 
 	// Setup the left and right render targets
 	{
-		hmd->GetRecommendedRenderTargetSize( &hmd_render_target_width, &hmd_render_target_height );
+		hmd_render_target_width = hmd.reccomendedRenderTargetWidth();
+		hmd_render_target_height = hmd.reccomendedRenderTargetHeight();
 
 		CreateFrameBuffer( hmd_render_target_width, hmd_render_target_height, left_eye_desc );
 		CreateFrameBuffer( hmd_render_target_width, hmd_render_target_height, right_eye_desc );
@@ -641,10 +561,10 @@ int main( int argc, char* argv[] )
 
 	// Grab the projection and eye to pos matrices
 	// These are fixed, only the pose changes each frame
-	left_eye_projection = GetHMDMartixProjection( vr::Eye_Left );
-	left_eye_to_pose = GetHMDMatrixPoseEye( vr::Eye_Left );
-	right_eye_projection = GetHMDMartixProjection( vr::Eye_Right );
-	right_eye_to_pose = GetHMDMatrixPoseEye( vr::Eye_Right );
+	left_eye_projection = hmd.projectionMartix( vr::Eye_Left );
+	left_eye_to_pose = hmd.eyePoseMatrix( vr::Eye_Left );
+	right_eye_projection = hmd.projectionMartix( vr::Eye_Right );
+	right_eye_to_pose = hmd.eyePoseMatrix( vr::Eye_Right );
 
 	// Finally!
 	// The application loop
@@ -664,7 +584,7 @@ int main( int argc, char* argv[] )
 		}
 
 		// Process SteamVR events
-		while( hmd->PollNextEvent( &vr_event, sizeof( vr_event ) ) )
+		while( hmd.get()->PollNextEvent( &vr_event, sizeof( vr_event ) ) )
 		{
 			// Apparently it works when we don't actulally poll the SteamVR event list, but you probably should
 		}
@@ -723,7 +643,7 @@ int main( int argc, char* argv[] )
 		glBindFramebuffer( GL_DRAW_FRAMEBUFFER, 0 );
 
 		// Submit frames to HMD
-		if( !hmd->IsInputFocusCapturedByAnotherProcess() )
+		if( !hmd.get()->IsInputFocusCapturedByAnotherProcess() )
 		{
 			// NOTE: to find out what the error codes mean Ctal+F 'enum EVRCompositorError' in 'openvr.h'
 			vr::EVRCompositorError submit_error = vr::VRCompositorError_None;
