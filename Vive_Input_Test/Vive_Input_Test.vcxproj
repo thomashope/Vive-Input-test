@@ -149,15 +149,29 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="controller.cpp" />
+    <ClCompile Include="dear_imgui\imgui.cpp" />
+    <ClCompile Include="dear_imgui\imgui_demo.cpp" />
+    <ClCompile Include="dear_imgui\imgui_draw.cpp" />
     <ClCompile Include="helpers.cpp" />
     <ClCompile Include="hmd.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="shader.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="controller.h" />
+    <ClInclude Include="dear_imgui\imconfig.h" />
+    <ClInclude Include="dear_imgui\imgui.h" />
+    <ClInclude Include="dear_imgui\imgui_internal.h" />
+    <ClInclude Include="dear_imgui\stb_rect_pack.h" />
+    <ClInclude Include="dear_imgui\stb_textedit.h" />
+    <ClInclude Include="dear_imgui\stb_truetype.h" />
     <ClInclude Include="helpers.h" />
     <ClInclude Include="hmd.h" />
     <ClInclude Include="shader.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="dear_imgui\imgui_sdl2.inl" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

@@ -54,8 +54,8 @@ std::string HMD::getTrackedDeviceString(
 
 glm::mat4 HMD::projectionMartix( vr::Hmd_Eye eye )
 {
-	if( !hmd_ )
-		return glm::mat4();
+	// If the hmd failed to initialise return an empty matrix
+	if( !hmd_ )	return glm::mat4();
 
 	vr::HmdMatrix44_t matrix = hmd_->GetProjectionMatrix( eye, near_plane_, far_plane_ );
 
@@ -64,8 +64,8 @@ glm::mat4 HMD::projectionMartix( vr::Hmd_Eye eye )
 
 glm::mat4 HMD::eyePoseMatrix( vr::Hmd_Eye eye )
 {
-	if( !hmd_ )
-		return glm::mat4();
+	// If the hmd failed to initialise return an empty matrix
+	if( !hmd_ )	return glm::mat4();
 
 	vr::HmdMatrix34_t matrix = hmd_->GetEyeToHeadTransform( eye );
 

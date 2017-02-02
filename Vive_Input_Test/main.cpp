@@ -13,6 +13,8 @@
 #include "shader.h"
 #include "helpers.h"
 #include "hmd.h"
+#include "controller.h"
+#include "dear_imgui/imgui.h"
 
 // This is a tech test of loading up all the OpenVR things and putting something on the HMD
 // Tested on Windows 10 with Visual Studio 2013 community and an Oculus DK2.
@@ -70,6 +72,9 @@ int tracked_controller_count;
 int tracked_controller_vertex_count;
 GLuint tracked_controller_vbo = 0;
 GLuint tracked_controller_vao = 0;
+
+Controller left_controller;
+Controller right_controller;
 
 /* Functions */
 
@@ -131,27 +136,6 @@ bool CreateFrameBuffer( int width, int height, FrameBufferDesc& desc )
 	return true;
 }
 
-/*
-glm::mat4 GetHMDMartixProjection( vr::Hmd_Eye eye )
-{
-	if( !hmd.isValid() )
-		return glm::mat4();
-
-	vr::HmdMatrix44_t matrix = hmd.get()->GetProjectionMatrix( eye, near_plane, far_plane );
-
-	return ConvertHMDMat4ToGLMMat4( matrix );
-}
-
-glm::mat4 GetHMDMatrixPoseEye( vr::Hmd_Eye eye )
-{
-	if( !hmd.isValid() )
-		return glm::mat4();
-
-	vr::HmdMatrix34_t matrix = hmd.get()->GetEyeToHeadTransform( eye );
-
-	return ConvertHMDMat3ToGLMMat4( matrix );
-}*/
-
 void RenderScene( vr::Hmd_Eye eye )
 {
 	glm::mat4 view_proj_matrix = glm::mat4( 1.0 );
@@ -197,10 +181,34 @@ void RenderScene( vr::Hmd_Eye eye )
 		glBindBuffer( GL_ARRAY_BUFFER, tracked_controller_vbo );
 		glDrawArrays( GL_LINES, 0, tracked_controller_vertex_count );
 	}
+
+	// Render ImGui
+	ImGui::Render();
 }
 
 void UpdateControllerAxes()
 {
+	// Init the left controller if it hasn't been initialised already
+	if( !left_controller.initialised() )
+	{
+		vr::TrackedDeviceIndex_t left_index = hmd.get()->GetTrackedDeviceIndexForControllerRole( vr::ETrackedControllerRole::TrackedControllerRole_LeftHand );
+		if( left_index != -1 )
+		{
+			left_controller.init( left_index, hmd.get() );
+		}
+	}
+
+	// Init the right controller if it hasn't been initialised already
+	if( !right_controller.initialised() )
+	{
+		vr::TrackedDeviceIndex_t right_index = hmd.get()->GetTrackedDeviceIndexForControllerRole( vr::ETrackedControllerRole::TrackedControllerRole_RightHand );
+		if( right_index != -1 )
+		{
+			right_controller.init( right_index, hmd.get() );
+		}
+	}
+
+
 	std::vector<GLfloat> vertex_data;
 	tracked_controller_count = 0;
 	tracked_controller_vertex_count = 0;
@@ -214,8 +222,14 @@ void UpdateControllerAxes()
 		if( !hmd.get()->IsTrackedDeviceConnected( tracked_device ) )
 			continue;
 
+		// Ensure the device is a controller
 		if( hmd.get()->GetTrackedDeviceClass( tracked_device ) != vr::TrackedDeviceClass_Controller )
 			continue;
+
+		// Update the controller
+		//hmd.get()->GetControllerState( tracked_device, controller.state(), sizeof(*controller.state()) );
+		//printf( "controller axis: %f %f\n", controller.state_.rAxis[0].x, controller.state_.rAxis[0].y );
+
 
 		tracked_controller_count += 1;
 
@@ -334,6 +348,56 @@ void UpdateHMDMatrixPose()
 	}
 }
 
+void ProcessVREvent( vr::VREvent_t event )
+{
+	// Forward the event to the correct device
+	if( event.trackedDeviceIndex == left_controller.index() )
+	{
+		left_controller.handleEvent( event );
+		return;
+	}
+	else if( event.trackedDeviceIndex == right_controller.index() )
+	{
+		right_controller.handleEvent( event );
+		return;
+	}
+
+	switch( event.eventType )
+	{
+	case vr::EVREventType::VREvent_MouseMove:
+		printf( "Mouse move: %f %f\n", event.data.mouse.x, event.data.mouse.y );
+	break;
+	case vr::EVREventType::VREvent_ButtonTouch:
+		printf( "Button touch: %d\n", event.data.controller.button );
+	break;
+	case vr::EVREventType::VREvent_ButtonUntouch:
+		printf( "Button untouch: %d\n", event.data.controller.button );
+	break;
+	case vr::EVREventType::VREvent_TouchPadMove:
+		printf( "Touchpad move: %f %f\n", event.data.touchPadMove.fValueXFirst, event.data.touchPadMove.fValueYFirst );
+	break;
+	case vr::EVREventType::VREvent_ButtonPress:
+		printf( "Button press: %d\n", event.data.controller.button );
+	break;
+	default: break;
+	}
+
+
+}
+
+void CreateImGui()
+{
+	ImGuiIO& imguiio = ImGui::GetIO();
+
+	static float f = 0.0f;
+	ImGui::Text( "Hello VR!" );
+	ImGui::SliderFloat( "float", &f, 0.0f, 1.0f );
+	ImGui::Text( "Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate );
+	
+	ImGui::SetMouseCursor( ImGuiMouseCursor_Arrow );
+	imguiio.MouseDrawCursor = true;
+}
+
 int main( int argc, char* argv[] )
 {
 	if( SDL_Init( SDL_INIT_EVERYTHING ) < 0 )
@@ -358,19 +422,6 @@ int main( int argc, char* argv[] )
 
 	bool success = hmd.init( vr::VRApplication_Scene );
 	if( !success ) return 1;
-
-	/*
-	// Load the OpenVR/SteamVR Runtime
-	vr::EVRInitError init_error = vr::VRInitError_None;
-	hmd = vr::VR_Init( &init_error, vr::VRApplication_Scene );
-	if( init_error != vr::VRInitError_None )
-	{
-		hmd = nullptr;
-		char buf[1024];
-		sprintf_s( buf, sizeof( buf ), "Unable to init VR runtime: %s", vr::VR_GetVRInitErrorAsEnglishDescription( init_error ) );
-		SDL_ShowSimpleMessageBox( SDL_MESSAGEBOX_ERROR, "VR_Init Failed", buf, NULL );
-		return 1;
-	}*/
 
 	vr::EVRInitError init_error = vr::VRInitError_None;
 	(vr::IVRRenderModels *)vr::VR_GetGenericInterface( vr::IVRRenderModels_Version, &init_error );
@@ -461,7 +512,6 @@ int main( int argc, char* argv[] )
 			"{"
 			"	outColour = texture(tex, fUV);"
 			"}";
-		//window_shader_program = CreateShaderProgram( "window", window_vertex_source, window_fragment_source );
 		window_shader.init( "window", window_vertex_source, window_fragment_source );
 	}
 
@@ -566,6 +616,9 @@ int main( int argc, char* argv[] )
 	right_eye_projection = hmd.projectionMartix( vr::Eye_Right );
 	right_eye_to_pose = hmd.eyePoseMatrix( vr::Eye_Right );
 
+	// Initialize ImGUi
+	ImGui::Init( companion_window );
+
 	// Finally!
 	// The application loop
 	bool done = false;
@@ -581,13 +634,34 @@ int main( int argc, char* argv[] )
 			{
 				if( sdl_event.key.keysym.scancode == SDL_SCANCODE_ESCAPE ) done = true;
 			}
+			ImGui::ProcessEvent( &sdl_event );
 		}
+
+		// Update the controllers
+		left_controller.update();
+		right_controller.update();
+
+		// Start the ImGui frame
+		ImGui::Frame(companion_window, &hmd, &left_controller);
+
+		CreateImGui();
 
 		// Process SteamVR events
 		while( hmd.get()->PollNextEvent( &vr_event, sizeof( vr_event ) ) )
 		{
 			// Apparently it works when we don't actulally poll the SteamVR event list, but you probably should
+			ProcessVREvent( vr_event );
 		}
+		
+		/*
+		if( left_controller.initialised() )
+		{
+			glm::vec2 axis = left_controller.GetAxisDelta();
+
+			ImGuiIO& io = ImGui::GetIO();
+			io.MousePos.x = axis.x * io.DisplaySize.x;
+			io.MousePos.y = axis.y * io.DisplaySize.y;
+		}*/
 
 		// HEY YOU - IMPORTANT!
 		//
@@ -698,6 +772,7 @@ int main( int argc, char* argv[] )
 	}
 
 	// Shutdown everything
+	ImGui::Shutdown();
 	vr::VR_Shutdown();
 	if( companion_window )
 	{
