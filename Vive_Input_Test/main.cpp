@@ -33,14 +33,15 @@ const int companion_width = 1280;
 const int companion_height = 640;
 SDL_GLContext gl_context = 0;
 
-Shader scene_shader;
-Shader window_shader;
+Shader texture_shader;
+GLint texture_matrix_location = -1;
+
 Shader colour_shader;
+GLint colour_matrix_location = -1;
 
 // OpenGL 
 GLuint scene_vao = 0;	// Vertex attribute object, stores the vertex layout
 GLuint scene_vbo = 0;	// Vertex buffer object, stores the vertex data
-GLint scene_matrix_location = -1;
 
 GLuint window_vao = 0;	// Vertex attribute object
 GLuint window_vbo = 0;	// Vertex buffer object
@@ -50,7 +51,6 @@ int tracked_controller_count;
 int tracked_controller_vertex_count;
 GLuint tracked_controller_vao = 0;
 GLuint tracked_controller_vbo = 0;
-GLint colour_matrix_location = -1;
 
 struct FrameBufferDesc
 {
@@ -143,13 +143,6 @@ void RenderScene( vr::Hmd_Eye eye )
 {
 	glm::mat4 view_proj_matrix = glm::mat4( 1.0 );
 
-	//view_proj_matrix = glm::perspective( glm::radians( 45.0f ), companion_width / (float)companion_height, near_plane, far_plane )
-	//	* glm::lookAt( glm::vec3( 2, 2, 2 ), glm::vec3( 0, 0, 0 ), glm::vec3( 0, 0, 1 ) );
-	//view_proj_matrix = GetHMDMartixProjection( eye )
-	//* glm::lookAt( glm::vec3( 2, 2, 2 ), glm::vec3( 0, 0, 0 ), glm::vec3( 0, 0, 1 ) )
-	//* GetHMDMatrixPoseEye( eye )
-	//* hmd_pose_matrix;
-
 	if( eye == vr::Eye_Left )
 	{
 		// Left eye
@@ -170,10 +163,10 @@ void RenderScene( vr::Hmd_Eye eye )
 	glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
 
 	// draw the scene
-	scene_shader.bind();
+	colour_shader.bind();
 	glBindVertexArray( scene_vao );
 	glBindBuffer( GL_ARRAY_BUFFER, scene_vbo );
-	glUniformMatrix4fv( scene_matrix_location, 1, GL_FALSE, glm::value_ptr( view_proj_matrix ) );
+	glUniformMatrix4fv( colour_matrix_location, 1, GL_FALSE, glm::value_ptr( view_proj_matrix ) );
 	glDrawArrays( GL_TRIANGLES, 0, 12 );
 
 	// draw the controller axis lines
@@ -222,28 +215,10 @@ void UpdateControllerAxes()
 
 	Controller* controllers[] = { &left_controller, &right_controller };
 
-	/*
-	for( vr::TrackedDeviceIndex_t tracked_device = vr::k_unTrackedDeviceIndex_Hmd + 1; tracked_device < vr::k_unMaxTrackedDeviceCount; ++tracked_device )
-	{
-		if( !hmd.get()->IsTrackedDeviceConnected( tracked_device ) )
-			continue;
-
-		// Ensure the device is a controller
-		if( hmd.get()->GetTrackedDeviceClass( tracked_device ) != vr::TrackedDeviceClass_Controller )
-			continue;
-
-		tracked_controller_count += 1;
-
-		if( !tracked_device_pose[tracked_device].bPoseIsValid )
-			continue;
-*/
-
-	for( int i = 0; i < 2; i++ )
+	for( int i = 0; i < sizeof(controllers)/sizeof(void*); i++ )
 	{
 		Controller* ctrl = controllers[i];
 
-		//const glm::mat4 mat = mat4_device_pose[tracked_device];
-		//const glm::mat4 mat = ConvertHMDMat3ToGLMMat4( tracked_device_pose[tracked_device].mDeviceToAbsoluteTracking );
 		const glm::mat4 mat = ctrl->deviceToAbsoluteTracking();
 		glm::vec4 center = mat * glm::vec4( 0, 0, 0, 1 );
 
@@ -425,12 +400,12 @@ void CreateImGui()
 	imguiio.MouseDrawCursor = true;
 }
 
-int main( int argc, char* argv[] )
+bool init()
 {
 	if( SDL_Init( SDL_INIT_EVERYTHING ) < 0 )
 	{
 		printf( "Could not init SDL! Error: %s\n", SDL_GetError() );
-		return 1;
+		return false;
 	}
 
 	{
@@ -443,12 +418,12 @@ int main( int argc, char* argv[] )
 		if( is_hmd_present == false || is_runtime_installed == false )
 		{
 			SDL_ShowSimpleMessageBox( SDL_MESSAGEBOX_ERROR, "error", "Something is missing...", NULL );
-			return 1;
+			return false;
 		}
 	}
 
 	bool success = hmd.init( vr::VRApplication_Scene );
-	if( !success ) return 1;
+	if( !success ) return false;
 
 	vr::EVRInitError init_error = vr::VRInitError_None;
 	(vr::IVRRenderModels *)vr::VR_GetGenericInterface( vr::IVRRenderModels_Version, &init_error );
@@ -463,7 +438,7 @@ int main( int argc, char* argv[] )
 		SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN );
 	if( companion_window == NULL )
 	{
-		return 1;
+		return false;
 	}
 
 	// Setup the OpenGL Context
@@ -477,14 +452,14 @@ int main( int argc, char* argv[] )
 	SDL_GL_SetSwapInterval( 0 );
 	if( gl_context == NULL )
 	{
-		return 1;
+		return false;
 	}
 
 	// Setup GLEW
 	glewExperimental = GL_TRUE;
 	if( glewInit() != GLEW_OK )
 	{
-		return 1;
+		return false;
 	}
 
 	{
@@ -501,36 +476,18 @@ int main( int argc, char* argv[] )
 
 	// Setup OpenGL
 	{
-		// Create Shaders
-		const char* scene_vertex_source =
+		const char* texture_vertex_source =
 			"#version 410\n"
 			"uniform mat4 matrix;"
 			"in vec3 vPosition;"
-			"void main()"
-			"{"
-			"	gl_Position = matrix * vec4(vPosition, 1.0);"
-			"}";
-		const char* scene_fragment_source =
-			"#version 410\n"
-			"out vec4 outColour;"
-			"void main()"
-			"{"
-			"	outColour = vec4(1.0, 1.0, 1.0, 1.0);"
-			"}";
-		scene_shader.init( "scene", scene_vertex_source, scene_fragment_source );
-		scene_matrix_location = scene_shader.getUniformLocation( "matrix" );
-
-		const char* window_vertex_source =
-			"#version 410\n"
-			"in vec2 vPosition;"
 			"in vec2 vUV;"
 			"out vec2 fUV;"
 			"void main()"
 			"{"
 			"	fUV = vUV;"
-			"	gl_Position = vec4(vPosition, 0.0, 1.0);"
+			"	gl_Position = matrix * vec4(vPosition, 1.0);"
 			"}";
-		const char* window_fragment_source =
+		const char* texture_fragment_source =
 			"#version 410\n"
 			"uniform sampler2D tex;"
 			"in vec2 fUV;"
@@ -539,7 +496,8 @@ int main( int argc, char* argv[] )
 			"{"
 			"	outColour = texture(tex, fUV);"
 			"}";
-		window_shader.init( "window", window_vertex_source, window_fragment_source );
+		texture_shader.init( "texture", texture_vertex_source, texture_fragment_source );
+		texture_matrix_location = texture_shader.getUniformLocation( "matrix" );
 
 		const char* colour_vertex_source =
 			"#version 410\n"
@@ -561,7 +519,7 @@ int main( int argc, char* argv[] )
 			"	outColour = vec4(fColour, 1.0);"
 			"}";
 		colour_shader.init( "colour", colour_vertex_source, colour_fragment_source );
-		colour_matrix_location = scene_shader.getUniformLocation( "matrix" );
+		colour_matrix_location = colour_shader.getUniformLocation( "matrix" );
 	}
 
 	// Setup the companion window data
@@ -572,16 +530,16 @@ int main( int argc, char* argv[] )
 		GLfloat verts[] =
 		{
 			// Left side
-			-1.0, -1.0f,	0.0, 0.0,
-			0.0, -1.0,		1.0, 0.0,
-			-1.0, 1.0,		0.0, 1.0,
-			0.0, 1.0,		1.0, 1.0,
+			-1.0, -1.0f, 0,		0.0, 0.0,
+			0.0, -1.0, 0,		1.0, 0.0,
+			-1.0, 1.0, 0,		0.0, 1.0,
+			0.0, 1.0, 0,		1.0, 1.0,
 
 			// Right side
-			0.0, -1.0,		0.0, 0.0,
-			1.0, -1.0,		1.0, 0.0,
-			0.0, 1.0,		0.0, 1.0,
-			1.0, 1.0,		1.0, 1.0
+			0.0, -1.0, 0,		0.0, 0.0,
+			1.0, -1.0, 0,		1.0, 0.0,
+			0.0, 1.0, 0,		0.0, 1.0,
+			1.0, 1.0, 0,		1.0, 1.0
 		};
 
 		GLushort indices[] = { 0, 1, 3, 0, 3, 2, 4, 5, 7, 4, 7, 6 };
@@ -597,38 +555,38 @@ int main( int argc, char* argv[] )
 		glBindBuffer( GL_ELEMENT_ARRAY_BUFFER, window_ebo );
 		glBufferData( GL_ELEMENT_ARRAY_BUFFER, sizeof( indices ), indices, GL_STATIC_DRAW );
 
-		GLint posAttrib = window_shader.getAttributeLocation( "vPosition" );
+		GLint posAttrib = texture_shader.getAttributeLocation( "vPosition" );
 		glEnableVertexAttribArray( posAttrib );
-		glVertexAttribPointer( posAttrib, 3, GL_FLOAT, GL_FALSE, 4 * sizeof( GLfloat ), 0 );
+		glVertexAttribPointer( posAttrib, 3, GL_FLOAT, GL_FALSE, 5 * sizeof( GLfloat ), 0 );
 
-		GLint uvAttrib = window_shader.getAttributeLocation( "vUV" );
+		GLint uvAttrib = texture_shader.getAttributeLocation( "vUV" );
 		glEnableVertexAttribArray( uvAttrib );
-		glVertexAttribPointer( uvAttrib, 2, GL_FLOAT, GL_FALSE, 4 * sizeof( GLfloat ), (void*)(2 * sizeof( GLfloat )) );
+		glVertexAttribPointer( uvAttrib, 2, GL_FLOAT, GL_FALSE, 5 * sizeof( GLfloat ), (void*)(3 * sizeof( GLfloat )) );
 	}
 
 	// Setup scene data
 	{
 		// Some hardcoded Triangles
 		float vertices[] = {
-			0.0f, 0.5f, 2.0f,
-			0.5f, -0.5f, 2.0f,
-			-0.5f, -0.5f, 2.0f,
+			0.0f, 0.5f, 2.0f, 1.0, 0.0, 1.0,
+			0.5f, -0.5f, 2.0f, 1.0, 1.0, 1.0,
+			-0.5f, -0.5f, 2.0f, 1.0, 1.0, 1.0,
 
-			0.0f, 0.5f, -2.0f,
-			0.5f, -0.5f, -2.0f,
-			-0.5f, -0.5f, -2.0f,
+			0.0f, 0.5f, -2.0f, 1.0, 1.0, 1.0,
+			0.5f, -0.5f, -2.0f, 0.0, 1.0, 1.0,
+			-0.5f, -0.5f, -2.0f, 1.0, 1.0, 1.0,
 
-			2, 0, 0,
-			2, 1, 0,
-			2, 1, 1,
+			2, 0, 0, 1.0, 1.0, 1.0,
+			2, 1, 0, 1.0, 1.0, 0.0,
+			2, 1, 1, 1.0, 1.0, 1.0,
 
-			-2, 0, 0,
-			-2, 1, 0,
-			-2, 1, 1
+			-2, 0, 0, 1.0, 0.0, 0.0,
+			-2, 1, 0, 0.0, 1.0, 1.0,
+			-2, 1, 1, 1.0, 1.0, 1.0
 		};
 
 		// Create a crappy triangle for rendering
-		scene_shader.bind();
+		colour_shader.bind();
 
 		glGenVertexArrays( 1, &scene_vao );
 		glBindVertexArray( scene_vao );
@@ -637,9 +595,19 @@ int main( int argc, char* argv[] )
 		glBindBuffer( GL_ARRAY_BUFFER, scene_vbo );
 		glBufferData( GL_ARRAY_BUFFER, sizeof( vertices ), vertices, GL_STATIC_DRAW );
 
-		GLint posAttrib = scene_shader.getAttributeLocation( "vPosition" );
+		GLuint stride = 2 * 3 * sizeof( GLfloat );
+		GLuint offset = 0;
+
+		GLint posAttrib = colour_shader.getAttributeLocation( "vPosition" );
 		glEnableVertexAttribArray( posAttrib );
-		glVertexAttribPointer( posAttrib, 3, GL_FLOAT, GL_FALSE, 0, 0 );
+		glVertexAttribPointer( posAttrib, 3, GL_FLOAT, GL_FALSE, stride, (const void *)offset );
+
+		offset += sizeof( GLfloat ) * 3;
+		GLint colAttrib = colour_shader.getAttributeLocation( "vColour" );
+		glEnableVertexAttribArray( colAttrib );
+		glVertexAttribPointer( colAttrib, 3, GL_FLOAT, GL_FALSE, stride, (const void *)offset );
+
+		glBindVertexArray( 0 );
 	}
 
 	// Setup the left and right render targets
@@ -655,7 +623,7 @@ int main( int argc, char* argv[] )
 	if( !vr::VRCompositor() )
 	{
 		SDL_ShowSimpleMessageBox( SDL_MESSAGEBOX_ERROR, "VR_Init Failed", "Could not initialise compositor", NULL );
-		return 1;
+		return false;
 	}
 
 	// Grab the projection and eye to pos matrices
@@ -667,6 +635,14 @@ int main( int argc, char* argv[] )
 
 	// Initialize ImGUi
 	ImGui::Init( companion_window );
+
+	return true;
+}
+
+int main( int argc, char* argv[] )
+{
+	// Initialise the application
+	if( !init() ) return 1;
 
 	// Finally!
 	// The application loop
@@ -784,7 +760,8 @@ int main( int argc, char* argv[] )
 		glClear( GL_COLOR_BUFFER_BIT );
 
 		glBindVertexArray( window_vao );
-		window_shader.bind();
+		texture_shader.bind();
+		glUniformMatrix4fv( texture_matrix_location, 1, GL_FALSE, glm::value_ptr( glm::mat4() ) );
 
 		// render left eye (first half of index array )
 		glBindTexture( GL_TEXTURE_2D, left_eye_desc.resolve_texture );
