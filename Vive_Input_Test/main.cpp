@@ -35,14 +35,22 @@ SDL_GLContext gl_context = 0;
 
 Shader scene_shader;
 Shader window_shader;
+Shader colour_shader;
 
 // OpenGL 
 GLuint scene_vao = 0;	// Vertex attribute object, stores the vertex layout
 GLuint scene_vbo = 0;	// Vertex buffer object, stores the vertex data
 GLint scene_matrix_location = -1;
+
 GLuint window_vao = 0;	// Vertex attribute object
 GLuint window_vbo = 0;	// Vertex buffer object
 GLuint window_ebo = 0;	// element buffer object, the order for vertices to be drawn
+
+int tracked_controller_count;
+int tracked_controller_vertex_count;
+GLuint tracked_controller_vao = 0;
+GLuint tracked_controller_vbo = 0;
+GLint colour_matrix_location = -1;
 
 struct FrameBufferDesc
 {
@@ -68,11 +76,6 @@ std::string pose_classes_string;							// what classes we saw poses for this fra
 char dev_class_char[vr::k_unMaxTrackedDeviceCount];			// for each device, a character representing its class
 int valid_pose_count;
 glm::mat4 hmd_pose_matrix;
-int tracked_controller_count;
-int tracked_controller_vertex_count;
-GLuint tracked_controller_vbo = 0;
-GLuint tracked_controller_vao = 0;
-
 Controller left_controller;
 Controller right_controller;
 
@@ -166,27 +169,25 @@ void RenderScene( vr::Hmd_Eye eye )
 
 	glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
 
+	// draw the scene
 	scene_shader.bind();
 	glBindVertexArray( scene_vao );
 	glBindBuffer( GL_ARRAY_BUFFER, scene_vbo );
 	glUniformMatrix4fv( scene_matrix_location, 1, GL_FALSE, glm::value_ptr( view_proj_matrix ) );
-
 	glDrawArrays( GL_TRIANGLES, 0, 12 );
 
-	// Ensure this application has focus
-	if( hmd.get()->IsInputFocusCapturedByAnotherProcess() )
-	{
-		// draw the controller axis lines
-		glBindVertexArray( tracked_controller_vao );
-		glBindBuffer( GL_ARRAY_BUFFER, tracked_controller_vbo );
-		glDrawArrays( GL_LINES, 0, tracked_controller_vertex_count );
-	}
+	// draw the controller axis lines
+	colour_shader.bind();
+	glBindVertexArray( tracked_controller_vao );
+	glBindBuffer( GL_ARRAY_BUFFER, tracked_controller_vbo );
+	glUniformMatrix4fv( colour_matrix_location, 1, GL_FALSE, glm::value_ptr( view_proj_matrix ) );
+	glDrawArrays( GL_LINES, 0, tracked_controller_vertex_count );
 
 	// Render ImGui
 	ImGui::Render();
 }
 
-void UpdateControllerAxes()
+void InitControllers()
 {
 	// Init the left controller if it hasn't been initialised already
 	if( !left_controller.initialised() )
@@ -207,8 +208,10 @@ void UpdateControllerAxes()
 			right_controller.init( right_index, hmd.get() );
 		}
 	}
+}
 
-
+void UpdateControllerAxes()
+{
 	std::vector<GLfloat> vertex_data;
 	tracked_controller_count = 0;
 	tracked_controller_vertex_count = 0;
@@ -217,6 +220,9 @@ void UpdateControllerAxes()
 	if( hmd.get()->IsInputFocusCapturedByAnotherProcess() )
 		return;
 
+	Controller* controllers[] = { &left_controller, &right_controller };
+
+	/*
 	for( vr::TrackedDeviceIndex_t tracked_device = vr::k_unTrackedDeviceIndex_Hmd + 1; tracked_device < vr::k_unMaxTrackedDeviceCount; ++tracked_device )
 	{
 		if( !hmd.get()->IsTrackedDeviceConnected( tracked_device ) )
@@ -226,17 +232,19 @@ void UpdateControllerAxes()
 		if( hmd.get()->GetTrackedDeviceClass( tracked_device ) != vr::TrackedDeviceClass_Controller )
 			continue;
 
-		// Update the controller
-		//hmd.get()->GetControllerState( tracked_device, controller.state(), sizeof(*controller.state()) );
-		//printf( "controller axis: %f %f\n", controller.state_.rAxis[0].x, controller.state_.rAxis[0].y );
-
-
 		tracked_controller_count += 1;
 
 		if( !tracked_device_pose[tracked_device].bPoseIsValid )
 			continue;
+*/
 
-		const glm::mat4 mat = mat4_device_pose[tracked_device];
+	for( int i = 0; i < 2; i++ )
+	{
+		Controller* ctrl = controllers[i];
+
+		//const glm::mat4 mat = mat4_device_pose[tracked_device];
+		//const glm::mat4 mat = ConvertHMDMat3ToGLMMat4( tracked_device_pose[tracked_device].mDeviceToAbsoluteTracking );
+		const glm::mat4 mat = ctrl->deviceToAbsoluteTracking();
 		glm::vec4 center = mat * glm::vec4( 0, 0, 0, 1 );
 
 		for( int i = 0; i < 3; ++i )
@@ -251,17 +259,17 @@ void UpdateControllerAxes()
 			vertex_data.push_back( center.y );
 			vertex_data.push_back( center.z );
 
-			//vertex_data.push_back( colour.x );
-			//vertex_data.push_back( colour.y );
-			//vertex_data.push_back( colour.z );
+			vertex_data.push_back( colour.x );
+			vertex_data.push_back( colour.y );
+			vertex_data.push_back( colour.z );
 
 			vertex_data.push_back( point.x );
 			vertex_data.push_back( point.y );
 			vertex_data.push_back( point.z );
 
-			//vertex_data.push_back( colour.x );
-			//vertex_data.push_back( colour.y );
-			//vertex_data.push_back( colour.z );
+			vertex_data.push_back( colour.x );
+			vertex_data.push_back( colour.y );
+			vertex_data.push_back( colour.z );
 
 			tracked_controller_vertex_count += 2;
 		}
@@ -271,10 +279,10 @@ void UpdateControllerAxes()
 		glm::vec3 colour( .92f, .92f, .71f );
 
 		vertex_data.push_back( start.x ); vertex_data.push_back( start.y ); vertex_data.push_back( start.z );
-		//vertex_data.push_back( colour.x ); vertex_data.push_back( colour.y ); vertex_data.push_back( colour.z );
+		vertex_data.push_back( colour.x ); vertex_data.push_back( colour.y ); vertex_data.push_back( colour.z );
 
 		vertex_data.push_back( end.x ); vertex_data.push_back( end.y ); vertex_data.push_back( end.z );
-		//vertex_data.push_back( colour.x ); vertex_data.push_back( colour.y ); vertex_data.push_back( colour.z );
+		vertex_data.push_back( colour.x ); vertex_data.push_back( colour.y ); vertex_data.push_back( colour.z );
 
 		tracked_controller_vertex_count += 2;
 	}
@@ -282,21 +290,24 @@ void UpdateControllerAxes()
 	// Setup the VAO the first time through
 	if( tracked_controller_vao == 0 )
 	{
+		colour_shader.bind();
 		glGenVertexArrays( 1, &tracked_controller_vao );
 		glBindVertexArray( tracked_controller_vao );
 
 		glGenBuffers( 1, &tracked_controller_vbo );
 		glBindBuffer( GL_ARRAY_BUFFER, tracked_controller_vbo );
 
-		GLuint stride = 3 * sizeof( GLfloat );
+		GLuint stride = 2 * 3 * sizeof( GLfloat );
 		GLuint offset = 0;
 
-		glEnableVertexAttribArray( 0 );
-		glVertexAttribPointer( 0, 3, GL_FLOAT, GL_FALSE, stride, (const void *)offset );
+		GLint posAttrib = colour_shader.getAttributeLocation( "vPosition" );
+		glEnableVertexAttribArray( posAttrib );
+		glVertexAttribPointer( posAttrib, 3, GL_FLOAT, GL_FALSE, stride, (const void *)offset );
 
 		offset += sizeof( GLfloat ) * 3;
-		glEnableVertexAttribArray( 1 );
-		glVertexAttribPointer( 1, 3, GL_FLOAT, GL_FALSE, stride, (const void *)offset );
+		GLint colAttrib = colour_shader.getAttributeLocation( "vColour" );
+		glEnableVertexAttribArray( colAttrib );
+		glVertexAttribPointer( colAttrib, 3, GL_FLOAT, GL_FALSE, stride, (const void *)offset );
 
 		glBindVertexArray( 0 );
 	}
@@ -306,11 +317,9 @@ void UpdateControllerAxes()
 	{
 		glBufferData( GL_ARRAY_BUFFER, sizeof( GLfloat ) * vertex_data.size(), vertex_data.data(), GL_STREAM_DRAW );
 	}
-
-	//printf( "tracked_controlers: %d\n", tracked_controller_count );
 }
 
-void UpdateHMDMatrixPose()
+void UpdatePoses()
 {
 	if( !hmd.isValid() )
 		return;
@@ -325,6 +334,13 @@ void UpdateHMDMatrixPose()
 		{
 			valid_pose_count++;
 			mat4_device_pose[nDevice] = ConvertHMDMat3ToGLMMat4( tracked_device_pose[nDevice].mDeviceToAbsoluteTracking );
+			
+			if( left_controller.index() == nDevice )
+				left_controller.setPose( tracked_device_pose[nDevice] );
+
+			if( right_controller.index() == nDevice )
+				right_controller.setPose( tracked_device_pose[nDevice] );
+			
 			if( dev_class_char[nDevice] == 0 )
 			{
 				switch( hmd.get()->GetTrackedDeviceClass( nDevice ) )
@@ -332,7 +348,7 @@ void UpdateHMDMatrixPose()
 				case vr::TrackedDeviceClass_Controller:        dev_class_char[nDevice] = 'C'; break;
 				case vr::TrackedDeviceClass_HMD:               dev_class_char[nDevice] = 'H'; break;
 				case vr::TrackedDeviceClass_Invalid:           dev_class_char[nDevice] = 'I'; break;
-					//case vr::TrackedDeviceClass_Other:             dev_class_char[nDevice] = 'O'; break;
+				case vr::TrackedDeviceClass_GenericTracker:    dev_class_char[nDevice] = 'G'; break;
 				case vr::TrackedDeviceClass_TrackingReference: dev_class_char[nDevice] = 'T'; break;
 				default:                                       dev_class_char[nDevice] = '?'; break;
 				}
@@ -383,8 +399,6 @@ void ProcessVREvent( vr::VREvent_t event )
 	break;
 	default: break;
 	}
-
-
 }
 
 void CreateImGui()
@@ -393,16 +407,19 @@ void CreateImGui()
 
 	static float f = 0.0f;
 	ImGui::Text( "Hello VR!" );
-	ImGui::SliderFloat( "float", &f, 0.0f, 1.0f );
+	ImGui::Separator();
 	ImGui::Text( "Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate );
-	
-	glm::vec2 left_touch_pos = left_controller.GetAxis(vr::k_EButton_SteamVR_Touchpad);
-	glm::vec2 right_touch_pos = right_controller.GetAxis(vr::k_EButton_SteamVR_Touchpad);
+	ImGui::Separator();
 
-	ImGui::Value("Left touch x", left_touch_pos.x);
-	ImGui::Value("Left touch y", left_touch_pos.y);
-	ImGui::Value("Right touch x", right_touch_pos.x);
-	ImGui::Value("Right touch y", right_touch_pos.y);
+	glm::vec2 left_touch_pos = left_controller.GetAxis( vr::k_EButton_SteamVR_Touchpad );
+	glm::vec2 right_touch_pos = right_controller.GetAxis( vr::k_EButton_SteamVR_Touchpad );
+
+	ImGui::Value( "Left touch x", left_touch_pos.x );
+	ImGui::Value( "Left touch y", left_touch_pos.y );
+	ImGui::Value( "Left trigger", left_controller.isButtonDown( vr::k_EButton_SteamVR_Trigger ) );
+	ImGui::Value( "Right touch x", right_touch_pos.x );
+	ImGui::Value( "Right touch y", right_touch_pos.y );
+	ImGui::Value( "Right trigger", right_controller.isButtonDown( vr::k_EButton_SteamVR_Trigger ) );
 
 	ImGui::SetMouseCursor( ImGuiMouseCursor_Arrow );
 	imguiio.MouseDrawCursor = true;
@@ -523,6 +540,28 @@ int main( int argc, char* argv[] )
 			"	outColour = texture(tex, fUV);"
 			"}";
 		window_shader.init( "window", window_vertex_source, window_fragment_source );
+
+		const char* colour_vertex_source =
+			"#version 410\n"
+			"uniform mat4 matrix;"
+			"in vec3 vPosition;"
+			"in vec3 vColour;"
+			"out vec3 fColour;"
+			"void main()"
+			"{"
+			"	fColour = vColour;"
+			"	gl_Position = matrix * vec4(vPosition, 1.0);"
+			"}";
+		const char* colour_fragment_source =
+			"#version 410\n"
+			"in vec3 fColour;"
+			"out vec4 outColour;"
+			"void main()"
+			"{"
+			"	outColour = vec4(fColour, 1.0);"
+			"}";
+		colour_shader.init( "colour", colour_vertex_source, colour_fragment_source );
+		colour_matrix_location = scene_shader.getUniformLocation( "matrix" );
 	}
 
 	// Setup the companion window data
@@ -647,42 +686,27 @@ int main( int argc, char* argv[] )
 			ImGui::ProcessEvent( &sdl_event );
 		}
 
-		// Update the controllers
-		left_controller.update();
-		right_controller.update();
-
 		// Start the ImGui frame
 		ImGui::Frame(companion_window, &hmd, &left_controller);
+
+		InitControllers();
 
 		CreateImGui();
 
 		// Process SteamVR events
 		while( hmd.get()->PollNextEvent( &vr_event, sizeof( vr_event ) ) )
 		{
-			// Apparently it works when we don't actulally poll the SteamVR event list, but you probably should
 			ProcessVREvent( vr_event );
 		}
-		
-		/*
-		if( left_controller.initialised() )
-		{
-			glm::vec2 axis = left_controller.GetAxisDelta();
 
-			ImGuiIO& io = ImGui::GetIO();
-			io.MousePos.x = axis.x * io.DisplaySize.x;
-			io.MousePos.y = axis.y * io.DisplaySize.y;
-		}*/
+		// Update poses
+		UpdatePoses();
 
-		// HEY YOU - IMPORTANT!
-		//
-		// This must be called or the app will not gain focus! Currently called inside UpdateHMDMatrixPose();
-		//		vr::TrackedDevicePose_t pose_buffer[vr::k_unMaxTrackedDeviceCount];
-		//		vr::VRCompositor()->WaitGetPoses( pose_buffer, vr::k_unMaxTrackedDeviceCount, NULL, 0 );
-		//
-		// TBH at this stage I don't fully know what poses are,
-		// apart from the fact valve seem to think they are important and we must get them
-		// Something to do with the position of the HMD
-		UpdateHMDMatrixPose();
+		// Update the controllers
+		left_controller.update();
+		right_controller.update();
+
+		// Update controller models
 		UpdateControllerAxes();
 
 		glEnable( GL_DEPTH_TEST );

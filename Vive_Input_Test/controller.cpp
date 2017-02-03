@@ -29,8 +29,16 @@ void Controller::update()
 		// Copy the current state into the old state
 		prev_state_ = state_;
 
-		// Update the current state
+		// Update the current controller state and pose
 		hmd_->GetControllerState( index_, &state_, sizeof( state_ ) );
+
+		/* // The pos given from this function is accurate at the time the state was generated, i think...
+		// It definately feels laggier than the one passed from WaitGetPoses()
+		hmd_->GetControllerStateWithPose(
+			vr::TrackingUniverseOrigin::TrackingUniverseStanding,
+			index_,
+			&state_, sizeof( state_ ),
+			&pose_ ); */
 	}
 }
 
@@ -39,10 +47,10 @@ void Controller::handleEvent( vr::VREvent_t event )
 	switch( event.eventType )
 	{
 	case vr::EVREventType::VREvent_ButtonTouch:
-		printf( "touch button %d\n", event.data.controller.button );
+		//printf( "touch button %d\n", event.data.controller.button );
 	break;
 	case vr::EVREventType::VREvent_ButtonUntouch:
-		printf( "untouch button %d\n", event.data.controller.button );
+		//printf( "untouch button %d\n", event.data.controller.button );
 	break;
 	case vr::EVREventType::VREvent_ButtonPress: break;
 	case vr::EVREventType::VREvent_ButtonUnpress: break;
@@ -50,7 +58,7 @@ void Controller::handleEvent( vr::VREvent_t event )
 	}
 }
 
-glm::vec2 Controller::GetAxis( vr::EVRButtonId button )
+glm::vec2 Controller::GetAxis( vr::EVRButtonId button ) const
 {
 	glm::vec2 axis_value;
 	unsigned axisId = (unsigned)button - (unsigned)vr::k_EButton_Axis0;
@@ -65,7 +73,7 @@ glm::vec2 Controller::GetAxis( vr::EVRButtonId button )
 	return axis_value;
 }
 
-glm::vec2 Controller::GetPrevAxis( vr::EVRButtonId button )
+glm::vec2 Controller::GetPrevAxis( vr::EVRButtonId button ) const
 {
 	glm::vec2 axis_value;
 	unsigned axis = (unsigned)button - (unsigned)vr::k_EButton_Axis0;
@@ -80,7 +88,7 @@ glm::vec2 Controller::GetPrevAxis( vr::EVRButtonId button )
 	return axis_value;
 }
 
-glm::vec2 Controller::GetAxisDelta( vr::EVRButtonId button )
+glm::vec2 Controller::GetAxisDelta( vr::EVRButtonId button ) const
 {
 	glm::vec2 current = GetAxis( button );
 	glm::vec2 prev = GetPrevAxis( button );

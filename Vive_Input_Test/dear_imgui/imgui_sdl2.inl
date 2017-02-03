@@ -384,8 +384,8 @@ void ImGui::Frame(SDL_Window* window, HMD* hmd, Controller* controller )
 
 		// Rescale the resolution to match the vive
 		// Still doesnt quite match on companion window, is this due to the vr distortion going on?
-		mx = (mx / (float)companion_w * 2.0f) * display_w;
-		my = (my / (float)companion_h) * display_h;
+		mx = (int)(mx / (float)companion_w * 2.0f) * display_w;
+		my = (int)(my / (float)companion_h) * display_h;
 
 		if( SDL_GetWindowFlags( window ) & SDL_WINDOW_MOUSE_FOCUS )
 			io.MousePos = ImVec2( (mx / (float)companion_w) * 0.5f * display_w, (float)my );   // Mouse position, in pixels (set to -1,-1 if no mouse / on another screen, etc.)
@@ -402,20 +402,25 @@ void ImGui::Frame(SDL_Window* window, HMD* hmd, Controller* controller )
 	}
 	else // Use the controler for input insead
 	{
-		//if( controller->finger_on_touchpad() )
+		glm::vec2 touch_pos = controller->GetAxis( vr::k_EButton_SteamVR_Touchpad );
+		if ( controller->GetAxis( vr::k_EButton_SteamVR_Touchpad ) != glm::vec2(0, 0) && controller->GetPrevAxis( vr::k_EButton_SteamVR_Touchpad ) != glm::vec2(0,0) )
 		{
-			glm::vec2 touch_pos = controller->GetAxis( vr::k_EButton_SteamVR_Touchpad );
-			if ( controller->GetAxis( vr::k_EButton_SteamVR_Touchpad ) != glm::vec2(0, 0) && controller->GetPrevAxis( vr::k_EButton_SteamVR_Touchpad ) != glm::vec2(0,0) )
-			{
-				//glm::vec2 touch_delta = controller->GetAxisDelta();
-				glm::vec2 touch_delta = controller->GetAxisDelta( vr::k_EButton_SteamVR_Touchpad );
-				//printf( "touch detla %f %f\n", touch_delta.x, touch_delta.y );
+			//glm::vec2 touch_delta = controller->GetAxisDelta();
+			glm::vec2 touch_delta = controller->GetAxisDelta( vr::k_EButton_SteamVR_Touchpad );
+			//printf( "touch detla %f %f\n", touch_delta.x, touch_delta.y );
 
-				io.MousePos.x += touch_delta.x * 300;
-				io.MousePos.y += touch_delta.y * -300;
-			}
+			io.MousePos.x += touch_delta.x * 300;
+			io.MousePos.y += touch_delta.y * -300;
 		}
+
+		io.MouseDown[0] = controller->isButtonDown( vr::k_EButton_SteamVR_Trigger );
 	}
+
+	// Clamp mouse position to screen
+	if( io.MousePos.x < 0 ) io.MousePos.x = 0;
+	if( io.MousePos.y < 0 ) io.MousePos.y = 0;
+	if( io.MousePos.x > w ) io.MousePos.x = (float)w;
+	if( io.MousePos.y > h ) io.MousePos.y = (float)h;
 
     // Hide OS mouse cursor if ImGui is drawing it
     SDL_ShowCursor(io.MouseDrawCursor ? 0 : 1);
