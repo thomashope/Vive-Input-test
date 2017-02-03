@@ -3,8 +3,7 @@
 Controller::Controller() :
 	initialised_(false),
 	hmd_(nullptr),
-	index_(12),
-	finger_on_touchpad_(false)
+	index_(12)
 {
 
 }
@@ -40,25 +39,21 @@ void Controller::handleEvent( vr::VREvent_t event )
 	switch( event.eventType )
 	{
 	case vr::EVREventType::VREvent_ButtonTouch:
-		if( event.data.controller.button == vr::k_EButton_SteamVR_Touchpad ) finger_on_touchpad_ = true;
-		printf( "touch pad\n" );
+		printf( "touch button %d\n", event.data.controller.button );
 	break;
 	case vr::EVREventType::VREvent_ButtonUntouch:
-		if( event.data.controller.button == vr::k_EButton_SteamVR_Touchpad ) finger_on_touchpad_ = false;
-		printf( "untouch pad\n" );
+		printf( "untouch button %d\n", event.data.controller.button );
 	break;
-	case vr::EVREventType::VREvent_TouchPadMove:
-		prev_ /* Touch pad move event not being generated????? */ touchpad_ = touchpad_;
-		touchpad_ = glm::vec2( event.data.touchPadMove.fValueXRaw, event.data.touchPadMove.fValueYRaw );
-		printf( "raw touch: %f %f \n", event.data.touchPadMove.fValueXRaw, event.data.touchPadMove.fValueYRaw );
+	case vr::EVREventType::VREvent_ButtonPress: break;
+	case vr::EVREventType::VREvent_ButtonUnpress: break;
 	default: break;
 	}
 }
 
-glm::vec2 Controller::GetAxis( vr::EVRButtonId buttonId )
+glm::vec2 Controller::GetAxis( vr::EVRButtonId button )
 {
 	glm::vec2 axis_value;
-	unsigned axisId = (unsigned)buttonId - (unsigned)vr::k_EButton_Axis0;
+	unsigned axisId = (unsigned)button - (unsigned)vr::k_EButton_Axis0;
 	switch( axisId )
 	{
 	case 0: axis_value = glm::vec2( state_.rAxis[0].x, state_.rAxis[0].y ); break;
@@ -70,20 +65,25 @@ glm::vec2 Controller::GetAxis( vr::EVRButtonId buttonId )
 	return axis_value;
 }
 
-glm::vec2 Controller::GetAxisDelta( vr::EVRButtonId buttonId )
+glm::vec2 Controller::GetPrevAxis( vr::EVRButtonId button )
 {
-	glm::vec2 current = GetAxis( buttonId );
-
-	glm::vec2 prev;
-	unsigned axisId = (unsigned)buttonId - (unsigned)vr::k_EButton_Axis0;
-	switch( axisId )
+	glm::vec2 axis_value;
+	unsigned axis = (unsigned)button - (unsigned)vr::k_EButton_Axis0;
+	switch( axis )
 	{
-	case 0: prev = glm::vec2( prev_state_.rAxis[0].x, prev_state_.rAxis[0].y ); break;
-	case 1: prev = glm::vec2( prev_state_.rAxis[1].x, prev_state_.rAxis[1].y ); break;
-	case 2: prev = glm::vec2( prev_state_.rAxis[2].x, prev_state_.rAxis[2].y ); break;
-	case 3: prev = glm::vec2( prev_state_.rAxis[3].x, prev_state_.rAxis[3].y ); break;
-	case 4: prev = glm::vec2( prev_state_.rAxis[4].x, prev_state_.rAxis[4].y ); break;
+	case 0: axis_value = glm::vec2( prev_state_.rAxis[0].x, prev_state_.rAxis[0].y ); break;
+	case 1: axis_value = glm::vec2( prev_state_.rAxis[1].x, prev_state_.rAxis[1].y ); break;
+	case 2: axis_value = glm::vec2( prev_state_.rAxis[2].x, prev_state_.rAxis[2].y ); break;
+	case 3: axis_value = glm::vec2( prev_state_.rAxis[3].x, prev_state_.rAxis[3].y ); break;
+	case 4: axis_value = glm::vec2( prev_state_.rAxis[4].x, prev_state_.rAxis[4].y ); break;
 	}
+	return axis_value;
+}
+
+glm::vec2 Controller::GetAxisDelta( vr::EVRButtonId button )
+{
+	glm::vec2 current = GetAxis( button );
+	glm::vec2 prev = GetPrevAxis( button );
 
 	return current - prev;
 }

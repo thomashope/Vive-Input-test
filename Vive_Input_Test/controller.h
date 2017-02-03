@@ -13,12 +13,13 @@ public:
 
 	void init( vr::TrackedDeviceIndex_t index, vr::IVRSystem* hmd );
 
-	bool GetButton( vr::EVRButtonId buttonId ) { return state_.ulButtonPressed & vr::ButtonMaskFromId( buttonId ) != 0; }
+	bool isButtonDown( vr::EVRButtonId button ) { return state_.ulButtonPressed & vr::ButtonMaskFromId( button ) != 0; }
+	bool isButtonPressed( vr::EVRButtonId button ) { return (state_.ulButtonPressed & vr::ButtonMaskFromId( button ) != 0) && (prev_state_.ulButtonPressed & vr::ButtonMaskFromId( button ) == 0);  }
+	bool isButtonReleased( vr::EVRButtonId button ) { return (state_.ulButtonPressed & vr::ButtonMaskFromId( button ) == 0) && (prev_state_.ulButtonPressed & vr::ButtonMaskFromId( button ) != 0); }
 
-	glm::vec2 GetAxis( vr::EVRButtonId buttonId = vr::k_EButton_SteamVR_Touchpad );
-	glm::vec2 GetAxisDelta( vr::EVRButtonId buttonId = vr::k_EButton_SteamVR_Touchpad );
-
-	glm::vec2 GetTouchpadDelta() { return touchpad_ - prev_touchpad_; }
+	glm::vec2 GetAxis( vr::EVRButtonId button );
+	glm::vec2 GetPrevAxis( vr::EVRButtonId button );
+	glm::vec2 GetAxisDelta( vr::EVRButtonId button );
 
 	// TODO
 	void update();
@@ -28,7 +29,6 @@ public:
 	vr::VRControllerState_t* prevState() { return &prev_state_; }
 	vr::TrackedDeviceIndex_t index() { return index_; }
 	bool initialised() { return initialised_; }
-	bool finger_on_touchpad() { return finger_on_touchpad_; }
 
 protected:
 	bool initialised_;
@@ -38,8 +38,4 @@ protected:
 
 	vr::VRControllerState_t state_;
 	vr::VRControllerState_t prev_state_;
-
-	bool finger_on_touchpad_;
-	glm::vec2 touchpad_;
-	glm::vec2 prev_touchpad_;
 };

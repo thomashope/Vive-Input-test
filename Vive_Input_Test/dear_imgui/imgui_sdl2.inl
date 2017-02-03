@@ -402,14 +402,18 @@ void ImGui::Frame(SDL_Window* window, HMD* hmd, Controller* controller )
 	}
 	else // Use the controler for input insead
 	{
-		if( controller->finger_on_touchpad() )
+		//if( controller->finger_on_touchpad() )
 		{
-			//glm::vec2 touch_delta = controller->GetAxisDelta();
-			glm::vec2 touch_delta = controller->GetTouchpadDelta();
-			//printf( "touch detla %f %f\n", touch_delta.x, touch_delta.y );
+			glm::vec2 touch_pos = controller->GetAxis( vr::k_EButton_SteamVR_Touchpad );
+			if ( controller->GetAxis( vr::k_EButton_SteamVR_Touchpad ) != glm::vec2(0, 0) && controller->GetPrevAxis( vr::k_EButton_SteamVR_Touchpad ) != glm::vec2(0,0) )
+			{
+				//glm::vec2 touch_delta = controller->GetAxisDelta();
+				glm::vec2 touch_delta = controller->GetAxisDelta( vr::k_EButton_SteamVR_Touchpad );
+				//printf( "touch detla %f %f\n", touch_delta.x, touch_delta.y );
 
-			io.MousePos.x += touch_delta.x * 100;
-			io.MousePos.y += touch_delta.y * -100;
+				io.MousePos.x += touch_delta.x * 300;
+				io.MousePos.y += touch_delta.y * -300;
+			}
 		}
 	}
 

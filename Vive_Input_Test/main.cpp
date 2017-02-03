@@ -53,7 +53,7 @@ struct FrameBufferDesc
 	GLuint resolve_frame_buffer;
 } left_eye_desc, right_eye_desc;
 
-// OpenvR
+// OpenVR
 HMD hmd;
 uint32_t hmd_render_target_width;
 uint32_t hmd_render_target_height;
@@ -362,6 +362,8 @@ void ProcessVREvent( vr::VREvent_t event )
 		return;
 	}
 
+
+
 	switch( event.eventType )
 	{
 	case vr::EVREventType::VREvent_MouseMove:
@@ -394,6 +396,14 @@ void CreateImGui()
 	ImGui::SliderFloat( "float", &f, 0.0f, 1.0f );
 	ImGui::Text( "Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate );
 	
+	glm::vec2 left_touch_pos = left_controller.GetAxis(vr::k_EButton_SteamVR_Touchpad);
+	glm::vec2 right_touch_pos = right_controller.GetAxis(vr::k_EButton_SteamVR_Touchpad);
+
+	ImGui::Value("Left touch x", left_touch_pos.x);
+	ImGui::Value("Left touch y", left_touch_pos.y);
+	ImGui::Value("Right touch x", right_touch_pos.x);
+	ImGui::Value("Right touch y", right_touch_pos.y);
+
 	ImGui::SetMouseCursor( ImGuiMouseCursor_Arrow );
 	imguiio.MouseDrawCursor = true;
 }
