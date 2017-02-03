@@ -16,6 +16,7 @@
 #include "hmd.h"
 #include "controller.h"
 #include "dear_imgui/imgui.h"
+#include "points_mesh.h"
 
 // This is a tech test of loading up all the OpenVR things and putting something on the HMD
 // Tested on Windows 10 with Visual Studio 2013 community and an Oculus DK2.
@@ -81,8 +82,11 @@ std::string pose_classes_string;							// what classes we saw poses for this fra
 char dev_class_char[vr::k_unMaxTrackedDeviceCount];			// for each device, a character representing its class
 int valid_pose_count;
 glm::mat4 hmd_pose_matrix;
+
 Controller left_controller;
 Controller right_controller;
+
+PointsMesh points_mesh;
 
 /* Functions */
 
@@ -204,16 +208,21 @@ void RenderScene( vr::Hmd_Eye eye )
 	// draw the scene
 	colour_shader.bind();
 	glBindVertexArray( scene_vao );
-	glBindBuffer( GL_ARRAY_BUFFER, scene_vbo );
 	glUniformMatrix4fv( colour_matrix_location, 1, GL_FALSE, glm::value_ptr( view_proj_matrix ) );
 	glDrawArrays( GL_TRIANGLES, 0, 12 );
+
+	points_mesh.bind();
+	glm::mat4 bunny_mat = glm::translate( glm::vec3( 0, 1, -1 ) );
+	bunny_mat *= glm::scale( glm::vec3( 5, 5, 5 ) );
+	glUniformMatrix4fv( colour_matrix_location, 1, GL_FALSE, glm::value_ptr( view_proj_matrix * bunny_mat ) );
+	points_mesh.draw();
 
 	// draw the controller axis lines
 	colour_shader.bind();
 	glBindVertexArray( tracked_controller_vao );
-	glBindBuffer( GL_ARRAY_BUFFER, tracked_controller_vbo );
 	glUniformMatrix4fv( colour_matrix_location, 1, GL_FALSE, glm::value_ptr( view_proj_matrix ) );
 	glDrawArrays( GL_LINES, 0, tracked_controller_vertex_count );
+
 
 	// Render ImGui
 	texture_shader.bind();
@@ -302,7 +311,7 @@ void UpdateControllerAxes()
 		}
 
 		glm::vec4 start = mat * glm::vec4( 0, 0, -0.02f, 1 );
-		glm::vec4 end = mat * glm::vec4( 0, 0, -39.0f, 1 );
+		glm::vec4 end = mat * glm::vec4( 0, 0, -15.0f, 1 );
 		glm::vec3 colour( .92f, .92f, .71f );
 
 		vertex_data.push_back( start.x ); vertex_data.push_back( start.y ); vertex_data.push_back( start.z );
@@ -448,6 +457,10 @@ void CreateImGui()
 	ImGui::Value( "Right touch x", right_touch_pos.x );
 	ImGui::Value( "Right touch y", right_touch_pos.y );
 	ImGui::Value( "Right trigger", right_controller.isButtonDown( vr::k_EButton_SteamVR_Trigger ) );
+	ImGui::Separator();
+	ImGui::Text( "Loaded model: %s", points_mesh.name_.c_str() );
+	ImGui::Value( "Total Points", points_mesh.data_.size() / 6 );
+	ImGui::Value( "Total Bytes", sizeof(points_mesh.data_[0]) * points_mesh.data_.size() );
 
 	ImGui::SetMouseCursor( ImGuiMouseCursor_Arrow );
 	imguiio.MouseDrawCursor = true;
@@ -696,6 +709,8 @@ bool init()
 		glVertexAttribPointer( uvAttrib, 2, GL_FLOAT, GL_FALSE, 5 * sizeof( GLfloat ), (void*)(3 * sizeof( GLfloat )) );
 	}
 
+	points_mesh.init( &colour_shader, "bunny_res1.points" );
+
 	// Setup the render targets
 	hmd_render_target_width = hmd.reccomendedRenderTargetWidth();
 	hmd_render_target_height = hmd.reccomendedRenderTargetHeight();
@@ -868,7 +883,7 @@ int main( int argc, char* argv[] )
 		glDrawElements( GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, 0 );
 
 		// render right eye (second half of index array )
-		glBindTexture( GL_TEXTURE_2D, gui_buffer_desc.render_texture );
+		glBindTexture( GL_TEXTURE_2D, right_eye_desc.resolve_texture );
 		glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE );
 		glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE );
 		glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR );

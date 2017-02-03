@@ -38,6 +38,9 @@
     <ClCompile Include="controller.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="points_mesh.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="shader.h">
@@ -68,6 +71,9 @@
       <Filter>imgui</Filter>
     </ClInclude>
     <ClInclude Include="controller.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="points_mesh.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

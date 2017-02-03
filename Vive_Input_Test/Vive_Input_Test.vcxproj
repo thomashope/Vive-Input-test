@@ -159,6 +159,7 @@
     <ClCompile Include="helpers.cpp" />
     <ClCompile Include="hmd.cpp" />
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="points_mesh.cpp" />
     <ClCompile Include="shader.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -171,6 +172,7 @@
     <ClInclude Include="dear_imgui\stb_truetype.h" />
     <ClInclude Include="helpers.h" />
     <ClInclude Include="hmd.h" />
+    <ClInclude Include="points_mesh.h" />
     <ClInclude Include="shader.h" />
   </ItemGroup>
   <ItemGroup>
