@@ -310,7 +310,6 @@ void ImGui::InvalidateDeviceObjects()
 }
 
 bool ImGui::Init(SDL_Window* window)
-//bool    ImGui_ImplSdlGL3_Init(SDL_Window* window)
 {
     ImGuiIO& io = ImGui::GetIO();
     io.KeyMap[ImGuiKey_Tab] = SDLK_TAB;                     // Keyboard mapping. ImGui will use those indices to peek into the io.KeyDown[] array.
@@ -363,8 +362,8 @@ void ImGui::Frame(SDL_Window* window, HMD* hmd, Controller* controller )
 	int companion_w, companion_h;
     //SDL_GetWindowSize(window, &w, &h);
     //SDL_GL_GetDrawableSize(window, &display_w, &display_h);
-	w = display_w = hmd->reccomendedRenderTargetWidth();
-	h = display_h = hmd->reccomendedRenderTargetHeight();
+	w = display_w = 1024;//hmd->reccomendedRenderTargetWidth();
+	h = display_h = 1024;//hmd->reccomendedRenderTargetHeight();
 	SDL_GetWindowSize(window, &companion_w, &companion_h);
 	io.DisplaySize = ImVec2((float)w, (float)h);
     io.DisplayFramebufferScale = ImVec2(w > 0 ? ((float)display_w / w) : 0, h > 0 ? ((float)display_h / h) : 0);

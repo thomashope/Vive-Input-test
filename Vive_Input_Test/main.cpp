@@ -2,6 +2,7 @@
 #include <GL/glew.h>
 #include <glm.hpp>
 #include <gtc/matrix_transform.hpp>
+#include <gtx/transform.hpp>
 #include <gtc/type_ptr.hpp>
 #include <SDL_opengl.h>
 #include <openvr.h>
@@ -47,10 +48,14 @@ GLuint window_vao = 0;	// Vertex attribute object
 GLuint window_vbo = 0;	// Vertex buffer object
 GLuint window_ebo = 0;	// element buffer object, the order for vertices to be drawn
 
-int tracked_controller_count;
+int tracked_controller_count;			// Number of controllers
 int tracked_controller_vertex_count;
 GLuint tracked_controller_vao = 0;
 GLuint tracked_controller_vbo = 0;
+
+GLuint virtual_screen_vao = 0;
+GLuint virtual_screen_vbo = 0;
+GLuint virtual_screen_ebo = 0;
 
 struct FrameBufferDesc
 {
@@ -59,7 +64,7 @@ struct FrameBufferDesc
 	GLuint render_frame_buffer;
 	GLuint resolve_texture;
 	GLuint resolve_frame_buffer;
-} left_eye_desc, right_eye_desc;
+} left_eye_desc, right_eye_desc, gui_buffer_desc;
 
 // OpenVR
 HMD hmd;
@@ -95,11 +100,45 @@ std::string GetTrackedDeviceString( vr::IVRSystem *pHmd, vr::TrackedDeviceIndex_
 	return sResult;
 }
 
+bool CreateSimpleFrameBuffer( int width, int height, FrameBufferDesc& desc )
+{
+	// frame buffer
+	glGenFramebuffers( 1, &desc.render_frame_buffer );
+	glBindFramebuffer( GL_FRAMEBUFFER, desc.render_frame_buffer );
+
+	// depth component
+	glGenRenderbuffers( 1, &desc.depth_buffer );
+	glBindRenderbuffer( GL_RENDERBUFFER, desc.depth_buffer );
+	glTexImage2D( GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, width, height, 0, GL_DEPTH_COMPONENT, GL_FLOAT, nullptr );
+	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
+	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, GL_LINEAR );
+	glFramebufferTexture2D( GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, desc.depth_buffer, 0 );
+
+	// texture component
+	glGenTextures( 1, &desc.render_texture );
+	glBindTexture( GL_TEXTURE_2D, desc.render_texture );
+	glTexImage2D( GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr );
+	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
+	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, GL_LINEAR );
+	glFramebufferTexture2D( GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, desc.render_texture, 0 );
+
+	// Check everything went ok
+	if( glCheckFramebufferStatus( GL_FRAMEBUFFER ) != GL_FRAMEBUFFER_COMPLETE )
+	{
+		printf( "Error creating simple frame buffer!\n" );
+		return false;
+	}
+
+	// Unbind any bound frame buffer
+	glBindFramebuffer( GL_FRAMEBUFFER, 0 );
+	return true;
+}
+
 // Create a frame buffer for use with the HMD
 // Fills in the Frame Buffer Description 
-bool CreateFrameBuffer( int width, int height, FrameBufferDesc& desc )
+bool CreateResolveFrameBuffer( int width, int height, FrameBufferDesc& desc )
 {
-	// render buffer
+	// render frame buffer
 	glGenFramebuffers( 1, &desc.render_frame_buffer );
 	glBindFramebuffer( GL_FRAMEBUFFER, desc.render_frame_buffer );
 
@@ -115,11 +154,11 @@ bool CreateFrameBuffer( int width, int height, FrameBufferDesc& desc )
 	glTexImage2DMultisample( GL_TEXTURE_2D_MULTISAMPLE, 4, GL_RGBA8, width, height, true );
 	glFramebufferTexture2D( GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D_MULTISAMPLE, desc.render_texture, 0 );
 
-	// resolve buffer
+	// resolve frame buffer
 	glGenFramebuffers( 1, &desc.resolve_frame_buffer );
 	glBindFramebuffer( GL_FRAMEBUFFER, desc.resolve_frame_buffer );
 
-	// texture
+	// resolve texture
 	glGenTextures( 1, &desc.resolve_texture );
 	glBindTexture( GL_TEXTURE_2D, desc.resolve_texture );
 	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
@@ -130,7 +169,7 @@ bool CreateFrameBuffer( int width, int height, FrameBufferDesc& desc )
 	// Check everything went ok
 	if( glCheckFramebufferStatus( GL_FRAMEBUFFER ) != GL_FRAMEBUFFER_COMPLETE )
 	{
-		printf( "Error creating frame buffer!\n" );
+		printf( "Error creating resolve frame buffer!\n" );
 		return false;
 	}
 
@@ -177,7 +216,20 @@ void RenderScene( vr::Hmd_Eye eye )
 	glDrawArrays( GL_LINES, 0, tracked_controller_vertex_count );
 
 	// Render ImGui
-	ImGui::Render();
+	texture_shader.bind();
+	glBindVertexArray( virtual_screen_vao );
+	glm::mat4 controller_mat = left_controller.deviceToAbsoluteTracking();
+	controller_mat *= glm::rotate( 100.0f, glm::vec3( 1, 0, 0 ) );
+	controller_mat *= glm::translate( glm::vec3( -0.25, 0, 0 ) );
+	controller_mat *= glm::scale( glm::vec3( 0.5f, 0.5f, 0.5f ) );
+	//view_proj_matrix *= left_controller.deviceToAbsoluteTracking();
+	glUniformMatrix4fv( colour_matrix_location, 1, GL_FALSE, glm::value_ptr( view_proj_matrix * controller_mat ) );
+	glBindTexture( GL_TEXTURE_2D, gui_buffer_desc.render_texture );
+	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE );
+	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE );
+	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
+	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
+	glDrawElements( GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, 0 );
 }
 
 void InitControllers()
@@ -381,6 +433,7 @@ void CreateImGui()
 	ImGuiIO& imguiio = ImGui::GetIO();
 
 	static float f = 0.0f;
+	ImGui::SetWindowFontScale( 3.0f );
 	ImGui::Text( "Hello VR!" );
 	ImGui::Separator();
 	ImGui::Text( "Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate );
@@ -586,7 +639,6 @@ bool init()
 		};
 
 		// Create a crappy triangle for rendering
-		colour_shader.bind();
 
 		glGenVertexArrays( 1, &scene_vao );
 		glBindVertexArray( scene_vao );
@@ -610,14 +662,47 @@ bool init()
 		glBindVertexArray( 0 );
 	}
 
-	// Setup the left and right render targets
 	{
-		hmd_render_target_width = hmd.reccomendedRenderTargetWidth();
-		hmd_render_target_height = hmd.reccomendedRenderTargetHeight();
+		// x, y,	u, v
+		// x and y are in normalised device coordinates
+		// each side should take up half the screen
+		GLfloat verts[] =
+		{
+			0.0, 0.0f, 0,		0.0, 0.0,
+			1.0, 0.0, 0,		1.0, 0.0,
+			0.0, 1.0, 0,		0.0, 1.0,
+			1.0, 1.0, 0,		1.0, 1.0
+		};
 
-		CreateFrameBuffer( hmd_render_target_width, hmd_render_target_height, left_eye_desc );
-		CreateFrameBuffer( hmd_render_target_width, hmd_render_target_height, right_eye_desc );
+		GLushort indices[] = { 0, 1, 3, 0, 3, 2 };
+
+		glGenVertexArrays( 1, &virtual_screen_vao );
+		glBindVertexArray( virtual_screen_vao );
+
+		glGenBuffers( 1, &virtual_screen_vbo );
+		glBindBuffer( GL_ARRAY_BUFFER, virtual_screen_vbo );
+		glBufferData( GL_ARRAY_BUFFER, sizeof( verts ), verts, GL_STATIC_DRAW );
+
+		glGenBuffers( 1, &virtual_screen_ebo );
+		glBindBuffer( GL_ELEMENT_ARRAY_BUFFER, virtual_screen_ebo );
+		glBufferData( GL_ELEMENT_ARRAY_BUFFER, sizeof( indices ), indices, GL_STATIC_DRAW );
+
+		GLint posAttrib = texture_shader.getAttributeLocation( "vPosition" );
+		glEnableVertexAttribArray( posAttrib );
+		glVertexAttribPointer( posAttrib, 3, GL_FLOAT, GL_FALSE, 5 * sizeof( GLfloat ), 0 );
+
+		GLint uvAttrib = texture_shader.getAttributeLocation( "vUV" );
+		glEnableVertexAttribArray( uvAttrib );
+		glVertexAttribPointer( uvAttrib, 2, GL_FLOAT, GL_FALSE, 5 * sizeof( GLfloat ), (void*)(3 * sizeof( GLfloat )) );
 	}
+
+	// Setup the render targets
+	hmd_render_target_width = hmd.reccomendedRenderTargetWidth();
+	hmd_render_target_height = hmd.reccomendedRenderTargetHeight();
+
+	CreateSimpleFrameBuffer( 1024, 1024, gui_buffer_desc );
+	CreateResolveFrameBuffer( hmd_render_target_width, hmd_render_target_height, left_eye_desc );
+	CreateResolveFrameBuffer( hmd_render_target_width, hmd_render_target_height, right_eye_desc );
 
 	// Setup the compositer
 	if( !vr::VRCompositor() )
@@ -726,6 +811,17 @@ int main( int argc, char* argv[] )
 		glBindFramebuffer( GL_READ_FRAMEBUFFER, 0 );
 		glBindFramebuffer( GL_DRAW_FRAMEBUFFER, 0 );
 
+		// Render the GUI to a buffer
+		glBindFramebuffer( GL_FRAMEBUFFER, gui_buffer_desc.render_frame_buffer );
+		glViewport( 0, 0, hmd_render_target_width, hmd_render_target_height );
+		glClearColor( 0.0, 0.0, 0.0, 0.0 );
+		glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
+		glEnable( GL_BLEND );
+		glBlendEquation( GL_FUNC_ADD );
+		glBlendFunc( GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA );
+		ImGui::Render();
+		glBindFramebuffer( GL_FRAMEBUFFER, 0 );
+
 		// Submit frames to HMD
 		if( !hmd.get()->IsInputFocusCapturedByAnotherProcess() )
 		{
@@ -759,8 +855,8 @@ int main( int argc, char* argv[] )
 		glClearColor( 0.0f, 0.0f, 0.0f, 1.0f );
 		glClear( GL_COLOR_BUFFER_BIT );
 
-		glBindVertexArray( window_vao );
 		texture_shader.bind();
+		glBindVertexArray( window_vao );
 		glUniformMatrix4fv( texture_matrix_location, 1, GL_FALSE, glm::value_ptr( glm::mat4() ) );
 
 		// render left eye (first half of index array )
@@ -772,7 +868,7 @@ int main( int argc, char* argv[] )
 		glDrawElements( GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, 0 );
 
 		// render right eye (second half of index array )
-		glBindTexture( GL_TEXTURE_2D, right_eye_desc.resolve_texture );
+		glBindTexture( GL_TEXTURE_2D, gui_buffer_desc.render_texture );
 		glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE );
 		glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE );
 		glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
