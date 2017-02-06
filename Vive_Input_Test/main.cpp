@@ -31,7 +31,7 @@
 /* Global variables */
 
 //Shader texture_shader;
-GLint texture_matrix_location = -1;
+//GLint texture_matrix_location = -1;
 
 Shader colour_shader;
 GLint colour_matrix_location = -1;
@@ -499,55 +499,11 @@ bool init()
 	// Create the window
 	if( !Window::init() ) return false;
 
-	// Setup OpenGL
+	// Setup Shaders
 	{
-		const char* texture_vertex_source =
-			"#version 410\n"
-			"uniform mat4 matrix;"
-			"layout(location = 1)in vec3 vPosition;"
-			"layout(location = 2)in vec2 vUV;"
-			"out vec2 fUV;"
-			"void main()"
-			"{"
-			"	fUV = vUV;"
-			"	gl_Position = matrix * vec4(vPosition, 1.0);"
-			"}";
-		const char* texture_fragment_source =
-			"#version 410\n"
-			"uniform sampler2D tex;"
-			"in vec2 fUV;"
-			"out vec4 outColour;"
-			"void main()"
-			"{"
-			"	outColour = texture(tex, fUV);"
-			"}";
-		std::string frag = ReadFileToString( "window_shader.gl_fs" );
-		std::string vert = ReadFileToString( "window_shader.gl_vs" );
-		Window::shader.init( "texture", vert.c_str(), frag.c_str() );
-		texture_matrix_location = Window::shader.getUniformLocation( "matrix" );
-
-		Window::init_gl();
-
-		const char* colour_vertex_source =
-			"#version 410\n"
-			"uniform mat4 matrix;"
-			"in vec3 vPosition;"
-			"in vec3 vColour;"
-			"out vec3 fColour;"
-			"void main()"
-			"{"
-			"	fColour = vColour;"
-			"	gl_Position = matrix * vec4(vPosition, 1.0);"
-			"}";
-		const char* colour_fragment_source =
-			"#version 410\n"
-			"in vec3 fColour;"
-			"out vec4 outColour;"
-			"void main()"
-			"{"
-			"	outColour = vec4(fColour, 1.0);"
-			"}";
-		colour_shader.init( "colour", colour_vertex_source, colour_fragment_source );
+		std::string vertex_source = ReadFileToString( "colour_shader.gl_vs" );
+		std::string fragment_source = ReadFileToString( "colour_shader.gl_fs" );
+		colour_shader.init( "colour", vertex_source.c_str(), fragment_source.c_str() );
 		colour_matrix_location = colour_shader.getUniformLocation( "matrix" );
 	}
 
@@ -793,7 +749,7 @@ int main( int argc, char* argv[] )
 
 		Window::shader.bind();
 		glBindVertexArray( Window::window_vao );
-		glUniformMatrix4fv( texture_matrix_location, 1, GL_FALSE, glm::value_ptr( glm::mat4() ) );
+		glUniformMatrix4fv( Window::matrix_location, 1, GL_FALSE, glm::value_ptr( glm::mat4() ) );
 
 		// render left eye (first half of index array )
 		Window::draw_left_side( left_eye_desc.resolve_texture );

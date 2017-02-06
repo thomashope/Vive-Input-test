@@ -31,6 +31,9 @@ std::string ReadFileToString( std::string filepath )
 		printf( "Could not open %s", filepath.c_str() );
 		return std::string( "" );
 	}
+	else {
+		printf( "Loaded %s as string successfully\n", filepath.c_str() );
+	}
 
 	// allocate the size of the string upfront
 	f.seekg( 0, std::ios::end );

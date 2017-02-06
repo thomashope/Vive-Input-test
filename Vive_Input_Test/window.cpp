@@ -1,4 +1,5 @@
 #include "window.h"
+#include "helpers.h"
 
 namespace Window
 {
@@ -12,6 +13,7 @@ namespace Window
 	GLuint window_ebo = 0;	// element buffer object, the order for vertices to be drawn
 	
 	Shader shader;
+	GLint matrix_location = 0;
 
 	bool init()
 	{
@@ -49,6 +51,8 @@ namespace Window
 		{
 			return false;
 		}
+
+		init_gl();
 
 		return true;
 	}
@@ -94,6 +98,12 @@ namespace Window
 		//GLint uvAttrib = texture_shader.getAttributeLocation( "vUV" );
 		glEnableVertexAttribArray( 2 );
 		glVertexAttribPointer( 2, 2, GL_FLOAT, GL_FALSE, 5 * sizeof( GLfloat ), (void*)(3 * sizeof( GLfloat )) );
+	
+
+		std::string frag = ReadFileToString( "window_shader.gl_fs" );
+		std::string vert = ReadFileToString( "window_shader.gl_vs" );
+		shader.init( "texture", vert.c_str(), frag.c_str() );
+		matrix_location = shader.getUniformLocation( "matrix" );
 	}
 
 	void shutdown()

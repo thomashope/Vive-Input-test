@@ -178,6 +178,8 @@
     <ClInclude Include="window.h" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="colour_shader.gl_fs" />
+    <None Include="colour_shader.gl_vs" />
     <None Include="dear_imgui\imgui_sdl2.inl" />
     <None Include="window_shader.gl_fs">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>

@@ -12,6 +12,9 @@
     <Filter Include="imgui">
       <UniqueIdentifier>{0888abfd-3e56-46ac-a408-9700826667dc}</UniqueIdentifier>
     </Filter>
+    <Filter Include="shaders">
+      <UniqueIdentifier>{d236e57f-54ab-48d1-93d5-a587ffd2bd77}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
@@ -87,7 +90,17 @@
     <None Include="dear_imgui\imgui_sdl2.inl">
       <Filter>imgui</Filter>
     </None>
-    <None Include="window_shader.gl_fs" />
-    <None Include="window_shader.gl_vs" />
+    <None Include="window_shader.gl_vs">
+      <Filter>shaders</Filter>
+    </None>
+    <None Include="window_shader.gl_fs">
+      <Filter>shaders</Filter>
+    </None>
+    <None Include="colour_shader.gl_vs">
+      <Filter>shaders</Filter>
+    </None>
+    <None Include="colour_shader.gl_fs">
+      <Filter>shaders</Filter>
+    </None>
   </ItemGroup>
 </Project>

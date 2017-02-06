@@ -1,0 +1,14 @@
+#version 410
+
+uniform mat4 matrix;
+
+in vec3 vPosition;
+in vec3 vColour;
+
+out vec3 fColour;
+
+void main()
+{
+	fColour = vColour;
+	gl_Position = matrix * vec4(vPosition, 1.0);
+}

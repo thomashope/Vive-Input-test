@@ -10,7 +10,6 @@ public:
 	Shader();
 	~Shader();
 
-
 	bool init( const char* name, const char* vertex_source, const char* fragment_source );
 	void bind();
 

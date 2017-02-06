@@ -27,6 +27,7 @@ namespace Window
 	extern GLuint window_ebo;	// element buffer object, the order for vertices to be drawn
 
 	extern Shader shader;
+	extern GLint matrix_location;
 }
 
 #endif

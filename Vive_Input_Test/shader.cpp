@@ -39,7 +39,6 @@ Shader::~Shader()
 		 glGetShaderInfoLog( vertex_shader, log_length, NULL, buffer );
 
 		 // Print the error
-		 // TODO: if we have the source then could we print the line that was broken?
 		 printf( "ERROR: compiling shader...\n" );
 		 printf( "%s", buffer );
 		 delete[] buffer;
@@ -71,7 +70,6 @@ Shader::~Shader()
 		 glGetShaderInfoLog( fragment_shader, log_length, NULL, buffer );
 
 		 // Print the error
-		 // TODO: if we have the source then could we print the line that was broken?
 		 printf( "ERROR: compiling shader...\n" );
 		 printf( "%s", buffer );
 		 delete[] buffer;
