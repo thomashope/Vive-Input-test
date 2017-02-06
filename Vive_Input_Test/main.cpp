@@ -17,6 +17,7 @@
 #include "controller.h"
 #include "dear_imgui/imgui.h"
 #include "points_mesh.h"
+#include "window.h"
 
 // This is a tech test of loading up all the OpenVR things and putting something on the HMD
 // Tested on Windows 10 with Visual Studio 2013 community and an Oculus DK2.
@@ -29,12 +30,6 @@
 
 /* Global variables */
 
-// SDL2
-SDL_Window* companion_window = nullptr;
-const int companion_width = 1280;
-const int companion_height = 640;
-SDL_GLContext gl_context = 0;
-
 Shader texture_shader;
 GLint texture_matrix_location = -1;
 
@@ -44,10 +39,6 @@ GLint colour_matrix_location = -1;
 // OpenGL 
 GLuint scene_vao = 0;	// Vertex attribute object, stores the vertex layout
 GLuint scene_vbo = 0;	// Vertex buffer object, stores the vertex data
-
-GLuint window_vao = 0;	// Vertex attribute object
-GLuint window_vbo = 0;	// Vertex buffer object
-GLuint window_ebo = 0;	// element buffer object, the order for vertices to be drawn
 
 int tracked_controller_count;			// Number of controllers
 int tracked_controller_vertex_count;
@@ -222,7 +213,6 @@ void RenderScene( vr::Hmd_Eye eye )
 	glBindVertexArray( tracked_controller_vao );
 	glUniformMatrix4fv( colour_matrix_location, 1, GL_FALSE, glm::value_ptr( view_proj_matrix ) );
 	glDrawArrays( GL_LINES, 0, tracked_controller_vertex_count );
-
 
 	// Render ImGui
 	texture_shader.bind();
@@ -491,43 +481,6 @@ bool init()
 	bool success = hmd.init( vr::VRApplication_Scene );
 	if( !success ) return false;
 
-	vr::EVRInitError init_error = vr::VRInitError_None;
-	(vr::IVRRenderModels *)vr::VR_GetGenericInterface( vr::IVRRenderModels_Version, &init_error );
-
-	// Create the window
-	companion_window = SDL_CreateWindow(
-		"Hello VR",
-		SDL_WINDOWPOS_CENTERED,
-		SDL_WINDOWPOS_CENTERED,
-		companion_width,
-		companion_height,
-		SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN );
-	if( companion_window == NULL )
-	{
-		return false;
-	}
-
-	// Setup the OpenGL Context
-	SDL_GL_SetAttribute( SDL_GL_CONTEXT_MAJOR_VERSION, 4 );
-	SDL_GL_SetAttribute( SDL_GL_CONTEXT_MINOR_VERSION, 1 );
-	SDL_GL_SetAttribute( SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE );
-	SDL_GL_SetAttribute( SDL_GL_MULTISAMPLEBUFFERS, 0 );
-	SDL_GL_SetAttribute( SDL_GL_MULTISAMPLESAMPLES, 0 );
-
-	gl_context = SDL_GL_CreateContext( companion_window );
-	SDL_GL_SetSwapInterval( 0 );
-	if( gl_context == NULL )
-	{
-		return false;
-	}
-
-	// Setup GLEW
-	glewExperimental = GL_TRUE;
-	if( glewInit() != GLEW_OK )
-	{
-		return false;
-	}
-
 	{
 		// Get some more info about our environment
 		std::string driver = "No Driver";
@@ -540,13 +493,26 @@ bool init()
 		printf( "Driver: %s\n", driver.c_str() );
 	}
 
+	vr::EVRInitError init_error = vr::VRInitError_None;
+	(vr::IVRRenderModels *)vr::VR_GetGenericInterface( vr::IVRRenderModels_Version, &init_error );
+
+	// Create the window
+	if( !Window::init() ) return false;
+
+	// Setup GLEW
+	glewExperimental = GL_TRUE;
+	if( glewInit() != GLEW_OK )
+	{
+		return false;
+	}
+
 	// Setup OpenGL
 	{
 		const char* texture_vertex_source =
 			"#version 410\n"
 			"uniform mat4 matrix;"
-			"in vec3 vPosition;"
-			"in vec2 vUV;"
+			"layout(location = 1)in vec3 vPosition;"
+			"layout(location = 2)in vec2 vUV;"
 			"out vec2 fUV;"
 			"void main()"
 			"{"
@@ -564,6 +530,8 @@ bool init()
 			"}";
 		texture_shader.init( "texture", texture_vertex_source, texture_fragment_source );
 		texture_matrix_location = texture_shader.getUniformLocation( "matrix" );
+
+		Window::init_gl();
 
 		const char* colour_vertex_source =
 			"#version 410\n"
@@ -586,48 +554,6 @@ bool init()
 			"}";
 		colour_shader.init( "colour", colour_vertex_source, colour_fragment_source );
 		colour_matrix_location = colour_shader.getUniformLocation( "matrix" );
-	}
-
-	// Setup the companion window data
-	{
-		// x, y,	u, v
-		// x and y are in normalised device coordinates
-		// each side should take up half the screen
-		GLfloat verts[] =
-		{
-			// Left side
-			-1.0, -1.0f, 0,		0.0, 0.0,
-			0.0, -1.0, 0,		1.0, 0.0,
-			-1.0, 1.0, 0,		0.0, 1.0,
-			0.0, 1.0, 0,		1.0, 1.0,
-
-			// Right side
-			0.0, -1.0, 0,		0.0, 0.0,
-			1.0, -1.0, 0,		1.0, 0.0,
-			0.0, 1.0, 0,		0.0, 1.0,
-			1.0, 1.0, 0,		1.0, 1.0
-		};
-
-		GLushort indices[] = { 0, 1, 3, 0, 3, 2, 4, 5, 7, 4, 7, 6 };
-
-		glGenVertexArrays( 1, &window_vao );
-		glBindVertexArray( window_vao );
-
-		glGenBuffers( 1, &window_vbo );
-		glBindBuffer( GL_ARRAY_BUFFER, window_vbo );
-		glBufferData( GL_ARRAY_BUFFER, sizeof( verts ), verts, GL_STATIC_DRAW );
-
-		glGenBuffers( 1, &window_ebo );
-		glBindBuffer( GL_ELEMENT_ARRAY_BUFFER, window_ebo );
-		glBufferData( GL_ELEMENT_ARRAY_BUFFER, sizeof( indices ), indices, GL_STATIC_DRAW );
-
-		GLint posAttrib = texture_shader.getAttributeLocation( "vPosition" );
-		glEnableVertexAttribArray( posAttrib );
-		glVertexAttribPointer( posAttrib, 3, GL_FLOAT, GL_FALSE, 5 * sizeof( GLfloat ), 0 );
-
-		GLint uvAttrib = texture_shader.getAttributeLocation( "vUV" );
-		glEnableVertexAttribArray( uvAttrib );
-		glVertexAttribPointer( uvAttrib, 2, GL_FLOAT, GL_FALSE, 5 * sizeof( GLfloat ), (void*)(3 * sizeof( GLfloat )) );
 	}
 
 	// Setup scene data
@@ -734,7 +660,7 @@ bool init()
 	right_eye_to_pose = hmd.eyePoseMatrix( vr::Eye_Right );
 
 	// Initialize ImGUi
-	ImGui::Init( companion_window );
+	ImGui::Init( Window::companion_window );
 
 	return true;
 }
@@ -763,7 +689,7 @@ int main( int argc, char* argv[] )
 		}
 
 		// Start the ImGui frame
-		ImGui::Frame(companion_window, &hmd, &left_controller);
+		ImGui::Frame( Window::companion_window, &hmd, &left_controller);
 
 		InitControllers();
 
@@ -866,41 +792,27 @@ int main( int argc, char* argv[] )
 		// Draw the companion window
 		glDisable( GL_DEPTH_TEST );
 		glBindFramebuffer( GL_FRAMEBUFFER, 0 );
-		glViewport( 0, 0, companion_width, companion_height );
+		glViewport( 0, 0, Window::companion_width, Window::companion_height );
 		glClearColor( 0.0f, 0.0f, 0.0f, 1.0f );
 		glClear( GL_COLOR_BUFFER_BIT );
 
 		texture_shader.bind();
-		glBindVertexArray( window_vao );
+		glBindVertexArray( Window::window_vao );
 		glUniformMatrix4fv( texture_matrix_location, 1, GL_FALSE, glm::value_ptr( glm::mat4() ) );
 
 		// render left eye (first half of index array )
-		glBindTexture( GL_TEXTURE_2D, left_eye_desc.resolve_texture );
-		glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE );
-		glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE );
-		glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
-		glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
-		glDrawElements( GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, 0 );
+		Window::draw_left_side( left_eye_desc.resolve_texture );
 
 		// render right eye (second half of index array )
-		glBindTexture( GL_TEXTURE_2D, right_eye_desc.resolve_texture );
-		glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE );
-		glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE );
-		glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
-		glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
-		glDrawElements( GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, (const void *)(12) );
+		Window::draw_right_side( right_eye_desc.resolve_texture );
 
-		SDL_GL_SwapWindow( companion_window );
+		Window::present();
 	}
 
 	// Shutdown everything
 	ImGui::Shutdown();
 	vr::VR_Shutdown();
-	if( companion_window )
-	{
-		SDL_DestroyWindow( companion_window );
-		companion_window = nullptr;
-	}
+	Window::shutdown();
 	SDL_Quit();
 
 	return 0;

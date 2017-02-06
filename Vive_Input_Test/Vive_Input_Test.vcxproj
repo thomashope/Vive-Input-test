@@ -161,6 +161,7 @@
     <ClCompile Include="main.cpp" />
     <ClCompile Include="points_mesh.cpp" />
     <ClCompile Include="shader.cpp" />
+    <ClCompile Include="window.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="controller.h" />
@@ -174,6 +175,7 @@
     <ClInclude Include="hmd.h" />
     <ClInclude Include="points_mesh.h" />
     <ClInclude Include="shader.h" />
+    <ClInclude Include="window.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="dear_imgui\imgui_sdl2.inl" />
