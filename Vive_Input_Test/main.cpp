@@ -30,9 +30,6 @@
 
 /* Global variables */
 
-//Shader texture_shader;
-//GLint texture_matrix_location = -1;
-
 Shader colour_shader;
 GLint colour_matrix_location = -1;
 
@@ -177,8 +174,13 @@ void RenderScene( vr::Hmd_Eye eye )
 {
 	glm::mat4 view_proj_matrix = glm::mat4( 1.0 );
 
+	glEnable( GL_MULTISAMPLE );
+
 	if( eye == vr::Eye_Left )
 	{
+		glBindFramebuffer( GL_FRAMEBUFFER, left_eye_desc.render_frame_buffer );
+		glViewport( 0, 0, hmd_render_target_width, hmd_render_target_height );
+
 		// Left eye
 		view_proj_matrix =
 			left_eye_projection
@@ -187,6 +189,8 @@ void RenderScene( vr::Hmd_Eye eye )
 	}
 	else
 	{
+		glBindFramebuffer( GL_FRAMEBUFFER, right_eye_desc.render_frame_buffer );
+		glViewport( 0, 0, hmd_render_target_width, hmd_render_target_height );
 		// Right Eye
 		view_proj_matrix =
 			right_eye_projection
@@ -217,11 +221,12 @@ void RenderScene( vr::Hmd_Eye eye )
 	// Render ImGui
 	Window::shader.bind();
 	glBindVertexArray( virtual_screen_vao );
+	
 	glm::mat4 controller_mat = left_controller.deviceToAbsoluteTracking();
 	controller_mat *= glm::rotate( 100.0f, glm::vec3( 1, 0, 0 ) );
 	controller_mat *= glm::translate( glm::vec3( -0.25, 0, 0 ) );
 	controller_mat *= glm::scale( glm::vec3( 0.5f, 0.5f, 0.5f ) );
-	//view_proj_matrix *= left_controller.deviceToAbsoluteTracking();
+
 	glUniformMatrix4fv( colour_matrix_location, 1, GL_FALSE, glm::value_ptr( view_proj_matrix * controller_mat ) );
 	glBindTexture( GL_TEXTURE_2D, gui_buffer_desc.render_texture );
 	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE );
@@ -229,6 +234,8 @@ void RenderScene( vr::Hmd_Eye eye )
 	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
 	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
 	glDrawElements( GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, 0 );
+
+	glDisable( GL_MULTISAMPLE );
 }
 
 void InitControllers()
@@ -666,42 +673,24 @@ int main( int argc, char* argv[] )
 		glClearColor( 0.0, 0.0, 0.0, 1.0 );
 
 		// render left eye
-		glEnable( GL_MULTISAMPLE );
-		glBindFramebuffer( GL_FRAMEBUFFER, left_eye_desc.render_frame_buffer );
-		glViewport( 0, 0, hmd_render_target_width, hmd_render_target_height );
-
 		RenderScene( vr::Eye_Left );
 
-		glBindFramebuffer( GL_FRAMEBUFFER, 0 );
-		glDisable( GL_MULTISAMPLE );
+		// Blit to the resolve buffer
 		glBindFramebuffer( GL_READ_FRAMEBUFFER, left_eye_desc.render_frame_buffer );
 		glBindFramebuffer( GL_DRAW_FRAMEBUFFER, left_eye_desc.resolve_frame_buffer );
-
 		glBlitFramebuffer( 0, 0, hmd_render_target_width, hmd_render_target_height, 0, 0, hmd_render_target_width, hmd_render_target_height,
 			GL_COLOR_BUFFER_BIT,
 			GL_LINEAR );
-
-		glBindFramebuffer( GL_READ_FRAMEBUFFER, 0 );
-		glBindFramebuffer( GL_DRAW_FRAMEBUFFER, 0 );
 
 		// render Right eye
-		glEnable( GL_MULTISAMPLE );
-		glBindFramebuffer( GL_FRAMEBUFFER, right_eye_desc.render_frame_buffer );
-		glViewport( 0, 0, hmd_render_target_width, hmd_render_target_height );
-
 		RenderScene( vr::Eye_Right );
 
-		glBindFramebuffer( GL_FRAMEBUFFER, 0 );
-		glDisable( GL_MULTISAMPLE );
+		// Blit to the resolve buffer
 		glBindFramebuffer( GL_READ_FRAMEBUFFER, right_eye_desc.render_frame_buffer );
 		glBindFramebuffer( GL_DRAW_FRAMEBUFFER, right_eye_desc.resolve_frame_buffer );
-
 		glBlitFramebuffer( 0, 0, hmd_render_target_width, hmd_render_target_height, 0, 0, hmd_render_target_width, hmd_render_target_height,
 			GL_COLOR_BUFFER_BIT,
 			GL_LINEAR );
-
-		glBindFramebuffer( GL_READ_FRAMEBUFFER, 0 );
-		glBindFramebuffer( GL_DRAW_FRAMEBUFFER, 0 );
 
 		// Render the GUI to a buffer
 		glBindFramebuffer( GL_FRAMEBUFFER, gui_buffer_desc.render_frame_buffer );
@@ -720,20 +709,18 @@ int main( int argc, char* argv[] )
 			// NOTE: to find out what the error codes mean Ctal+F 'enum EVRCompositorError' in 'openvr.h'
 			vr::EVRCompositorError submit_error = vr::VRCompositorError_None;
 
+			// Submit left eye
 			vr::Texture_t left_eye_texture = { (void*)left_eye_desc.resolve_texture, vr::ETextureType::TextureType_OpenGL, vr::ColorSpace_Gamma };
 			submit_error = vr::VRCompositor()->Submit( vr::Eye_Left, &left_eye_texture, NULL );
-			if( submit_error != vr::VRCompositorError_None )
-			{
-				printf( "Error in left eye %d\n", submit_error );
-			}
-
-
+			if( submit_error != vr::VRCompositorError_None ) printf( "Error in left eye %d\n", submit_error );
+			
+			// Submit right eye
 			vr::Texture_t right_eye_texture = { (void*)right_eye_desc.resolve_texture, vr::ETextureType::TextureType_OpenGL, vr::ColorSpace_Gamma };
 			submit_error = vr::VRCompositor()->Submit( vr::Eye_Right, &right_eye_texture, NULL );
-			if( submit_error != vr::VRCompositorError_None )
-			{
-				printf( "Error in right eye %d\n", submit_error );
-			}
+			if( submit_error != vr::VRCompositorError_None ) printf( "Error in right eye %d\n", submit_error );
+
+			// Added on advice from comments in IVRCompositor::submit in openvr.h
+			glFlush();
 		}
 		else
 		{
@@ -751,10 +738,7 @@ int main( int argc, char* argv[] )
 		glBindVertexArray( Window::window_vao );
 		glUniformMatrix4fv( Window::matrix_location, 1, GL_FALSE, glm::value_ptr( glm::mat4() ) );
 
-		// render left eye (first half of index array )
 		Window::draw_left_side( left_eye_desc.resolve_texture );
-
-		// render right eye (second half of index array )
 		Window::draw_right_side( right_eye_desc.resolve_texture );
 
 		Window::present();
