@@ -30,7 +30,7 @@
 
 /* Global variables */
 
-Shader texture_shader;
+//Shader texture_shader;
 GLint texture_matrix_location = -1;
 
 Shader colour_shader;
@@ -215,7 +215,7 @@ void RenderScene( vr::Hmd_Eye eye )
 	glDrawArrays( GL_LINES, 0, tracked_controller_vertex_count );
 
 	// Render ImGui
-	texture_shader.bind();
+	Window::shader.bind();
 	glBindVertexArray( virtual_screen_vao );
 	glm::mat4 controller_mat = left_controller.deviceToAbsoluteTracking();
 	controller_mat *= glm::rotate( 100.0f, glm::vec3( 1, 0, 0 ) );
@@ -499,13 +499,6 @@ bool init()
 	// Create the window
 	if( !Window::init() ) return false;
 
-	// Setup GLEW
-	glewExperimental = GL_TRUE;
-	if( glewInit() != GLEW_OK )
-	{
-		return false;
-	}
-
 	// Setup OpenGL
 	{
 		const char* texture_vertex_source =
@@ -528,8 +521,10 @@ bool init()
 			"{"
 			"	outColour = texture(tex, fUV);"
 			"}";
-		texture_shader.init( "texture", texture_vertex_source, texture_fragment_source );
-		texture_matrix_location = texture_shader.getUniformLocation( "matrix" );
+		std::string frag = ReadFileToString( "window_shader.gl_fs" );
+		std::string vert = ReadFileToString( "window_shader.gl_vs" );
+		Window::shader.init( "texture", vert.c_str(), frag.c_str() );
+		texture_matrix_location = Window::shader.getUniformLocation( "matrix" );
 
 		Window::init_gl();
 
@@ -626,11 +621,11 @@ bool init()
 		glBindBuffer( GL_ELEMENT_ARRAY_BUFFER, virtual_screen_ebo );
 		glBufferData( GL_ELEMENT_ARRAY_BUFFER, sizeof( indices ), indices, GL_STATIC_DRAW );
 
-		GLint posAttrib = texture_shader.getAttributeLocation( "vPosition" );
+		GLint posAttrib = Window::shader.getAttributeLocation( "vPosition" );
 		glEnableVertexAttribArray( posAttrib );
 		glVertexAttribPointer( posAttrib, 3, GL_FLOAT, GL_FALSE, 5 * sizeof( GLfloat ), 0 );
 
-		GLint uvAttrib = texture_shader.getAttributeLocation( "vUV" );
+		GLint uvAttrib = Window::shader.getAttributeLocation( "vUV" );
 		glEnableVertexAttribArray( uvAttrib );
 		glVertexAttribPointer( uvAttrib, 2, GL_FLOAT, GL_FALSE, 5 * sizeof( GLfloat ), (void*)(3 * sizeof( GLfloat )) );
 	}
@@ -796,7 +791,7 @@ int main( int argc, char* argv[] )
 		glClearColor( 0.0f, 0.0f, 0.0f, 1.0f );
 		glClear( GL_COLOR_BUFFER_BIT );
 
-		texture_shader.bind();
+		Window::shader.bind();
 		glBindVertexArray( Window::window_vao );
 		glUniformMatrix4fv( texture_matrix_location, 1, GL_FALSE, glm::value_ptr( glm::mat4() ) );
 

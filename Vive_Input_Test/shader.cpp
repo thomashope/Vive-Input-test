@@ -30,10 +30,22 @@ Shader::~Shader()
 	 glGetShaderiv( vertex_shader, GL_COMPILE_STATUS, &status );
 	 if( status != GL_TRUE )
 	 {
-		 printf( "Failed to compile %s vertex shader\n", name );
+		 // Get the length of the error log
+		 GLint log_length = 0;
+		 glGetShaderiv( vertex_shader, GL_INFO_LOG_LENGTH, &log_length );
+
+		 // Now get the error log itself
+		 GLchar* buffer = new GLchar[log_length];
+		 glGetShaderInfoLog( vertex_shader, log_length, NULL, buffer );
+
+		 // Print the error
+		 // TODO: if we have the source then could we print the line that was broken?
+		 printf( "ERROR: compiling shader...\n" );
+		 printf( "%s", buffer );
+		 delete[] buffer;
 		 glDeleteProgram( program_ );
 		 glDeleteShader( vertex_shader );
-		 return 0;
+		 return false;
 	 }
 	 else
 	 {
@@ -50,10 +62,21 @@ Shader::~Shader()
 	 glGetShaderiv( fragment_shader, GL_COMPILE_STATUS, &status );
 	 if( status != GL_TRUE )
 	 {
-		 printf( "Failed to compile %s fragment shader\n", name );
+		 // Get the length of the error log
+		 GLint log_length = 0;
+		 glGetShaderiv( fragment_shader, GL_INFO_LOG_LENGTH, &log_length );
+
+		 // Now get the error log itself
+		 GLchar* buffer = new GLchar[log_length];
+		 glGetShaderInfoLog( fragment_shader, log_length, NULL, buffer );
+
+		 // Print the error
+		 // TODO: if we have the source then could we print the line that was broken?
+		 printf( "ERROR: compiling shader...\n" );
+		 printf( "%s", buffer );
+		 delete[] buffer;
 		 glDeleteProgram( program_ );
 		 glDeleteShader( fragment_shader );
-		 program_ = 0;
 		 return false;
 	 }
 	 else

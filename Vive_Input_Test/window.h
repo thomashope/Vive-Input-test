@@ -4,6 +4,7 @@
 
 #include <SDL.h>
 #include <GL/glew.h>
+#include "shader.h"
 
 namespace Window
 {
@@ -25,6 +26,7 @@ namespace Window
 	extern GLuint window_vbo;	// Vertex buffer object
 	extern GLuint window_ebo;	// element buffer object, the order for vertices to be drawn
 
+	extern Shader shader;
 }
 
 #endif

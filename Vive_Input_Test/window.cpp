@@ -10,6 +10,8 @@ namespace Window
 	GLuint window_vao = 0;	// Vertex attribute object
 	GLuint window_vbo = 0;	// Vertex buffer object
 	GLuint window_ebo = 0;	// element buffer object, the order for vertices to be drawn
+	
+	Shader shader;
 
 	bool init()
 	{
@@ -41,6 +43,12 @@ namespace Window
 			return false;
 		}
 
+		// Setup GLEW
+		glewExperimental = GL_TRUE;
+		if( glewInit() != GLEW_OK )
+		{
+			return false;
+		}
 
 		return true;
 	}

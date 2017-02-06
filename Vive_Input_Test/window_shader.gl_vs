@@ -1,0 +1,10 @@
+#version 410
+uniform mat4 matrix;
+layout(location = 1)in vec3 vPosition;
+layout(location = 2)in vec2 vUV;
+out vec2 fUV;
+void main()
+{
+	fUV = vUV;
+	gl_Position = matrix * vec4(vPosition, 1.0);
+}
