@@ -593,7 +593,7 @@ bool init()
 		glVertexAttribPointer( uvAttrib, 2, GL_FLOAT, GL_FALSE, 5 * sizeof( GLfloat ), (void*)(3 * sizeof( GLfloat )) );
 	}
 
-	points_mesh.init( &colour_shader, "bunny_res1.points" );
+	points_mesh.init( &colour_shader, "dragon_res1.points" );
 
 	// Setup the render targets
 	hmd_render_target_width = hmd.reccomendedRenderTargetWidth();
@@ -649,8 +649,6 @@ int main( int argc, char* argv[] )
 		// Start the ImGui frame
 		ImGui::Frame( Window::companion_window, &hmd, &left_controller);
 
-		InitControllers();
-
 		CreateImGui();
 
 		// Process SteamVR events
@@ -660,14 +658,15 @@ int main( int argc, char* argv[] )
 		}
 
 		// Update poses
-		UpdatePoses();
+		UpdatePoses();				// This uses WaitGetPoses() to update the pose for every device
 
 		// Update the controllers
-		left_controller.update();
-		right_controller.update();
+		InitControllers();			// try to init any controlles that are not initialised
+		left_controller.update();	// update button state information
+		right_controller.update();	// update button state information
 
 		// Update controller models
-		UpdateControllerAxes();
+		UpdateControllerAxes();		// Sets up the vbos for drawing the controller position
 
 		glEnable( GL_DEPTH_TEST );
 		glClearColor( 0.0, 0.0, 0.0, 1.0 );
@@ -742,6 +741,10 @@ int main( int argc, char* argv[] )
 		Window::draw_right_side( right_eye_desc.resolve_texture );
 
 		Window::present();
+
+		// Callind based on advice from the comments in openvr.h
+		// Seems to be optional, but helpful since we are doing single threaded update and render
+		vr::VRCompositor()->PostPresentHandoff();
 	}
 
 	// Shutdown everything

@@ -40,7 +40,7 @@ void PointsMesh::init( Shader* shader, std::string filename )
 
 		while( file )
 		{
-			file >> x >> y >> z >> confidence >> intensity;
+			file >> x >> y >> z;// >> confidence >> intensity;
 			data_.push_back( x );
 			data_.push_back( y );
 			data_.push_back( z );
